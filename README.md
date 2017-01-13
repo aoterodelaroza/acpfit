@@ -1,4 +1,4 @@
-# ACPFIT: fit atom-centered potentials using least squares.
+## ACPFIT: fit atom-centered potentials using least squares.
 
 Use:
 
