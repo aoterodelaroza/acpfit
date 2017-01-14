@@ -16,6 +16,7 @@
 ! <http://www.gnu.org/licenses/>.
 program acpfit
   use tools_io
+  use tools
   use global
   implicit none
 
@@ -42,29 +43,9 @@ program acpfit
   write (uout,*)
 
   ! initialize
-  natoms = 0
   natoms_ang = 0
-  datapath = ""
-  emptyfile = "empty.dat"
-  reffile = "ref.dat"
-  wfile = "w.dat"
-  namesfile = "names.dat"
-  nexp = 0
-  nsubfiles = 0
-  nefilesi = 0
-  nfit = 0
-  nset = 0
-  allocate(atom(1))
-  allocate(lmax(1))
-  allocate(nval(1))
-  allocate(eexp(1))
-  allocate(subfile(1))
-  allocate(efilei(1))
-  allocate(iset_label(1))
-  allocate(iset_ini(1))
-  allocate(iset_n(1))
-  allocate(iset_step(1))
-  
+  call global_init()
+
   ! parse the input
   do while (getline(uin,line))
      lp=1
@@ -181,29 +162,8 @@ program acpfit
      end if
   end do
 
-  ! check and output data path
-  if (len_trim(datapath) < 1) &
-     call ferror("acpfit","no path to the data; use DATAPATH",faterr)
-
-  ! check atoms
-  if (natoms <= 0) call ferror("acpfit","no atoms in input; use ATOM",faterr)
-
-  ! check angular momentum lmax
-  if (natoms_ang == 0) & 
-     call ferror("acpfit","no maximum angular momentum; use LMAX",faterr)
-  if (natoms /= natoms_ang) & 
-     call ferror("acpfit","number of atoms in ATOM and LMAX inconsistent",faterr)
-  maxlmax = maxval(lmax)
-
-  ! check exponents
-  if (nexp == 0) &
-     call ferror("acpfit","no exponent information; use EXP",faterr)
-  if (any(nval < 0) .or. any(nval > 2)) &
-     call ferror("acpfit","n values can only be 0, 1, or 2",faterr)
-
-  ! check number of molecules
-  if (nfit == 0) &
-     call ferror("acpfit","no number of molecules in fitting set; use NFIT",faterr)
+  ! check the input data for sanity
+  call global_check(natoms_ang)
 
   ! build the default energy file names
   allocate(efile(natoms,maxlmax,nexp))
@@ -265,7 +225,7 @@ program acpfit
      end do
   end if
 
-  ! add the all set
+  ! add the "all" set
   nset = nset + 1
   call realloc(iset_label,nset)
   call realloc(iset_ini,nset)
@@ -317,6 +277,8 @@ program acpfit
      end do
   end do
   write (uout,*)
+
+  ! do stuff
 
   write (uout,'("ACPFIT ended succesfully (",A," WARNINGS, ",A," COMMENTS)")')&
      string(nwarns), string(ncomms)
