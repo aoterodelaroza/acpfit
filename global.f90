@@ -51,6 +51,12 @@ module global
   integer, allocatable :: nval(:) ! n-value associated to the exponent
   real*8, allocatable :: eexp(:) ! exponent value
 
+  ! fitting set
+  integer :: nfit
+  integer :: nset
+  character*255, allocatable :: iset_label(:)
+  integer, allocatable :: iset_ini(:), iset_n(:), iset_step(:)
+
   ! named files
   character(len=:), allocatable :: emptyfile !< name of the empty file
   character(len=:), allocatable :: reffile !< name of the reference energy file

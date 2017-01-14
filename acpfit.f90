@@ -52,12 +52,18 @@ program acpfit
   nexp = 0
   nsubfiles = 0
   nefilesi = 0
+  nfit = 0
+  nset = 0
   allocate(atom(1))
   allocate(lmax(1))
   allocate(nval(1))
   allocate(eexp(1))
   allocate(subfile(1))
   allocate(efilei(1))
+  allocate(iset_label(1))
+  allocate(iset_ini(1))
+  allocate(iset_n(1))
+  allocate(iset_step(1))
   
   ! parse the input
   do while (getline(uin,line))
@@ -75,7 +81,7 @@ program acpfit
         end do
         call realloc(atom,natoms)
      elseif (equal(word,'lmax')) then
-        ! ANGULAR at.s maxl.i
+        ! LMAX at.s maxl.i
         do while (.true.)
            word = lgetword(line,lp)
            if (len_trim(word) == 0) exit
@@ -121,23 +127,50 @@ program acpfit
         end do
         call realloc(nval,nexp)
         call realloc(eexp,nexp)
+     elseif (equal(word,'nfit')) then
+        ! NFIT nfit.i
+        ok = isinteger(nfit,line,lp)
+        if (.not.ok) &
+           call ferror("acpfit","wrong NFIT syntax",faterr)
+     elseif (equal(word,'set')) then
+        ! SET label.s ini.i end.i step.i
+        nset = nset + 1
+        if (nset > ubound(iset_ini,1)) then
+           call realloc(iset_label,2*nset)
+           call realloc(iset_ini,2*nset)
+           call realloc(iset_n,2*nset)
+           call realloc(iset_step,2*nset)
+        end if
+        iset_label(nset) = getword(line,lp)
+        ok = isinteger(iset_ini(nset),line,lp)
+        ok = ok .and. isinteger(iset_n(nset),line,lp)
+        if (.not.ok) &
+           call ferror("acpfit","wrong SET syntax",faterr)
+        ok = isinteger(iset_step(nset),line,lp)
+        if (.not.ok) iset_step(nset) = 1
      elseif (equal(word,'file')) then
         ! FILE ...
         word = getword(line,lp)
         if (equal(word,'empty')) then
+           ! FILE EMPTY emptyfile.s
            emptyfile = trim(line(lp:))
         elseif (equal(word,'ref')) then
+           ! FILE REF reffile.s 
            reffile = trim(line(lp:))
         elseif (equal(word,'w')) then
+           ! FILE W wfile.s
            wfile = trim(line(lp:))
         elseif (equal(word,'names')) then
+           ! FILE NAMES namesfile.s
            namesfile = trim(line(lp:))
         elseif (equal(word,'sub')) then
+           ! FILE SUB subfile.s
            nsubfiles = nsubfiles + 1
            if (nsubfiles > ubound(subfile,1)) &
               call realloc(subfile,2*nsubfiles)
            subfile(nsubfiles) = trim(line(lp:))
         elseif (equal(word,'eterm')) then
+           ! FILE ETERM at.s l.i n.i exp.r efile.s
            nefilesi = nefilesi + 1
            if (nefilesi > ubound(efilei,1)) &
               call realloc(efilei,2*nefilesi)
@@ -167,6 +200,10 @@ program acpfit
      call ferror("acpfit","no exponent information; use EXP",faterr)
   if (any(nval < 0) .or. any(nval > 2)) &
      call ferror("acpfit","n values can only be 0, 1, or 2",faterr)
+
+  ! check number of molecules
+  if (nfit == 0) &
+     call ferror("acpfit","no number of molecules in fitting set; use NFIT",faterr)
 
   ! build the default energy file names
   allocate(efile(natoms,maxlmax,nexp))
@@ -228,8 +265,36 @@ program acpfit
      end do
   end if
 
+  ! add the all set
+  nset = nset + 1
+  call realloc(iset_label,nset)
+  call realloc(iset_ini,nset)
+  call realloc(iset_n,nset)
+  call realloc(iset_step,nset)
+  iset_label(nset) = "all"
+  iset_ini(nset) = 1
+  iset_n(nset) = nfit
+  iset_step(nset) = 1
+
   ! some output
   write (uout,'("+ Summary of input data")')
+  write (uout,'("Atomic informaton: ")')
+  write (uout,'("# Id At lmax")')
+  do i = 1, natoms
+     write (uout,'(2X,99(A,X))') string(i,2,ioj_left), string(atom(i),3), string(lname(lmax(i)),2)
+  end do
+  write (uout,'("List of exponents: ")')
+  write (uout,'("# Id n      exponent ")')
+  do i = 1, nexp
+     write (uout,'(2X,99(A,X))') string(i,2,ioj_left), string(nval(i),3), string(eexp(i),'f',12,8,4)
+  end do
+  write (uout,'("List of evaluation sets: ")')
+  write (uout,'("#Id  ini  num  step name")')
+  do i = 1, nset
+     write (uout,'(2X,99(A,X))') string(i,2,ioj_left), string(iset_ini(i),5), string(iset_n(i),4), &
+        string(iset_step(i),3), string(iset_label(i))
+  end do
+  write (uout,'("Size of the fitting set: ",A)') string(nfit)
   write (uout,'("Data path: ",A)') string(datapath)
   write (uout,'("Names file: ",A)') string(namesfile)
   write (uout,'("Weight file: ",A)') string(wfile)
@@ -250,16 +315,6 @@ program acpfit
               string(nval(k),2), string(eexp(k),'f',10,4,4), string(efile(i,j,k))
         end do
      end do
-  end do
-  write (uout,'("Atomic informaton: ")')
-  write (uout,'("# Id At lmax")')
-  do i = 1, natoms
-     write (uout,'(2X,99(A,X))') string(i,2,ioj_left), string(atom(i),3), string(lname(lmax(i)),2)
-  end do
-  write (uout,'("List of exponents: ")')
-  write (uout,'("# Id n      exponent ")')
-  do i = 1, nexp
-     write (uout,'(2X,99(A,X))') string(i,2,ioj_left), string(nval(i),3), string(eexp(i),'f',12,8,4)
   end do
   write (uout,*)
 

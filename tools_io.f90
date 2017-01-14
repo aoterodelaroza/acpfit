@@ -1178,6 +1178,9 @@ contains
     write (uout,'("    List of exponents for the n-value equal to n. All ACP energy terms are   ")')
     write (uout,'("    assumed to have been calculated for all atoms with these exponents and n.")')
     write (uout,'("")')
+    write (uout,'("  NFIT nfit.i ")')
+    write (uout,'("    Number of systems in the fitting set.")')
+    write (uout,'("")')
     write (uout,'("Optional keywords:")')
     write (uout,'("")')
     write (uout,'("  FILE EMPTY emptyfile.s ")')
@@ -1203,6 +1206,11 @@ contains
     write (uout,'("    exp.r (default: <at.s>_<l.s>_<id.i>.dat, where at.s is the atomic symbol,")')
     write (uout,'("    l.s is the string corresponding to the angular momentum (l, s, p,...),")')
     write (uout,'("    and id.i is the exponent sequential identifier (see output)).")')
+    write (uout,'("")')
+    write (uout,'("  SET label.s ini.i end.i step.i")')
+    write (uout,'("    Define a new subset of the fitting set for separate evaluation. The set starts")')
+    write (uout,'("    at system number ini.i and ends at end.i, with step step.i. The step argument")')
+    write (uout,'("    is optional.")')
     write (uout,'("")')
 
   end subroutine help_me
