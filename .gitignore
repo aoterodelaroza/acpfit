@@ -4,7 +4,10 @@
 *.a
 
 # binary
-apcfit
+acpfit
+
+# data files
+dat/
 
 # emacs
 *~

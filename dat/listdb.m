@@ -3,9 +3,9 @@
 format long
 
 wnci = 1;
-wbde = 1;
-wbderel = 0;
-wdip = 100;
+wbde = 0;
+wbderel = 0.1;
+wdip = 0;
 wene = 0.1;
 
 ## List of database files to use in DCP optimization

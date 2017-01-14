@@ -1,3 +1,7 @@
+# bleh
 datapath dat/
 atom C H O N
-lmax 1 0 1 1
+lmax p s p p
+exp 2 0.08 0.10 0.12 0.14 0.16 0.18 0.20 0.22 0.24 0.26 \
+      0.28 0.40 0.60 0.80 1.00 1.20 1.40 1.60 1.80 2.00
+file eterm O s 2 0.14 bleh.blah

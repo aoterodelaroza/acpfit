@@ -44,10 +44,27 @@ module global
   integer :: natoms !< number of atoms
   character*2, allocatable :: atom(:) !< atomic symbols
   integer, allocatable :: lmax(:) !< maximum angular momentum for each atom
+  integer :: maxlmax !< maximum lmax
+
+  ! list of exponents and n-values
+  integer :: nexp ! number of exponents
+  integer, allocatable :: nval(:) ! n-value associated to the exponent
+  real*8, allocatable :: eexp(:) ! exponent value
+
+  ! named files
+  character(len=:), allocatable :: emptyfile !< name of the empty file
+  character(len=:), allocatable :: reffile !< name of the reference energy file
+  character(len=:), allocatable :: wfile !< name of the weight file
+  character(len=:), allocatable :: namesfile !< name of the names file
+  character*255, allocatable :: efile(:,:,:) !< name of the energy terms files
+  character*255, allocatable :: efilei(:) !< name of the energy terms files in manual input
+  character*255, allocatable :: subfile(:) !< name of the subtract energy file
+  integer :: nsubfiles
+  integer :: nefilesi
+  
 
   ! labels for the angular momentum channels
-  integer, parameter :: lmax0 = 5
-  character*1, parameter :: lname(0:5) = (/"l","s","p","d","f","g"/)
+  character*1, parameter :: lname(6) = (/"l","s","p","d","f","g"/)
 
 contains
   
