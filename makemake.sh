@@ -33,9 +33,9 @@ gawk '
 END{
     for (i=1;i<=fs;i++){
         if (ismodule[i] && uses[tolower(f[i])]){
-            str = sprintf(": %s.$(MODEXT)",f[i])
+            str = sprintf(": %s.mod",f[i])
             for (j=1;j<=uses[tolower(f[i])];j++)
-                str = sprintf("%s.$(OBJEXT) %s",use[f[i],j],str)
+                str = sprintf("%s.o %s",use[f[i],j],str)
             print str 
         }
     }

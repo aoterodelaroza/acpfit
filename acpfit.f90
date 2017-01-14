@@ -15,9 +15,10 @@
 ! along with this program.  If not, see
 ! <http://www.gnu.org/licenses/>.
 program acpfit
-  use tools_io
-  use tools
+  use files, only: makefilenames, readfiles
   use global
+  use types
+  use tools_io
   implicit none
 
   character(len=:), allocatable :: optv, subline, word, word2, line, aux
@@ -25,6 +26,10 @@ program acpfit
   integer :: natoms_ang
   logical :: ok
   real*8 :: rdum
+
+  ! energy terms files in manual input
+  integer :: nefilesi ! number of files
+  character*255, allocatable :: efilei(:) ! name of files
 
   ! open input and output files
   call ioinit()
@@ -44,7 +49,10 @@ program acpfit
 
   ! initialize
   natoms_ang = 0
+  nefilesi = 0
   call global_init()
+  if (allocated(efilei)) deallocate(efilei)
+  allocate(efilei(1))
 
   ! parse the input
   do while (getline(uin,line))
@@ -165,65 +173,11 @@ program acpfit
   ! check the input data for sanity
   call global_check(natoms_ang)
 
-  ! build the default energy file names
-  allocate(efile(natoms,maxlmax,nexp))
-  do i = 1, natoms
-     do j = 1, lmax(i)
-        do k = 1, nexp
-           efile(i,j,k) = lower(trim(atom(i))) // "_" // lname(j) // "_" // string(k) // ".dat"
-        end do
-     end do
-  end do
+  ! build the file names and process user input re specific energy term file names
+  call makefilenames(nefilesi,efilei)
 
-  ! parse the efile lines, if any available
-  if (nefilesi > 0) then
-     do i = 1, nefilesi
-        lp = 1
-        line = efilei(i)
-        word = lgetword(line,lp)
-        word2 = lgetword(line,lp)
-        ok = isinteger(idum2,line,lp)
-        ok = ok .and. isreal(rdum,line,lp)
-        if (.not.ok) &
-           call ferror("acpfit","incorrect syntax in FILE ETERM",faterr)
-
-        ! atom - iatom
-        iatom = 0
-        do ii = 1, natoms
-           if (equal(word,lower(atom(ii)))) then
-              iatom = ii
-              exit
-           end if
-        end do
-        if (iatom == 0) &
-           call ferror("acpfit","unknown atom in FILE ETERM",faterr)
-        
-        ! the angular momentum channel - il
-        il = 0
-        do ii = 1, lmax(iatom)
-           if (word2(1:1) == lname(ii)) then
-              il = ii
-              exit
-           end if
-        end do
-        if (iatom == 0) &
-           call ferror("acpfit","unknown ang. mom. label in FILE ETERM",faterr)
-
-        ! the exponent
-        iexp = 0
-        do ii = 1, nexp
-           if (idum2 == nval(ii) .and. abs(rdum-eexp(ii)) < 1d-10) then
-              iexp = ii
-              exit
-           end if
-        end do
-        if (iexp == 0) &
-           call ferror("acpfit","unknown n/exponent in FILE ETERM",faterr)
-
-        ! the file
-        efile(iatom,idum,iexp) = trim(line(lp:))
-     end do
-  end if
+  ! fill the column information
+  call global_fillcol()
 
   ! add the "all" set
   nset = nset + 1
@@ -236,47 +190,11 @@ program acpfit
   iset_n(nset) = nfit
   iset_step(nset) = 1
 
-  ! some output
-  write (uout,'("+ Summary of input data")')
-  write (uout,'("Atomic informaton: ")')
-  write (uout,'("# Id At lmax")')
-  do i = 1, natoms
-     write (uout,'(2X,99(A,X))') string(i,2,ioj_left), string(atom(i),3), string(lname(lmax(i)),2)
-  end do
-  write (uout,'("List of exponents: ")')
-  write (uout,'("# Id n      exponent ")')
-  do i = 1, nexp
-     write (uout,'(2X,99(A,X))') string(i,2,ioj_left), string(nval(i),3), string(eexp(i),'f',12,8,4)
-  end do
-  write (uout,'("List of evaluation sets: ")')
-  write (uout,'("#Id  ini  num  step name")')
-  do i = 1, nset
-     write (uout,'(2X,99(A,X))') string(i,2,ioj_left), string(iset_ini(i),5), string(iset_n(i),4), &
-        string(iset_step(i),3), string(iset_label(i))
-  end do
-  write (uout,'("Size of the fitting set: ",A)') string(nfit)
-  write (uout,'("Data path: ",A)') string(datapath)
-  write (uout,'("Names file: ",A)') string(namesfile)
-  write (uout,'("Weight file: ",A)') string(wfile)
-  write (uout,'("Empty file: ",A)') string(emptyfile)
-  write (uout,'("Reference file: ",A)') string(reffile)
-  if (nsubfiles > 0) then
-     write (uout,'("List of subtraction files: ")')
-     do i = 1, nsubfiles
-        write (uout,'(2X,A,": ",A)') string(i), string(subfile(i))
-     end do
-  end if
-  write (uout,'("List of energy term files: ")')
-  write (uout,'("#At ang iexp n   exponent  filename")')
-  do i = 1, natoms
-     do j = 1, lmax(i)
-        do k = 1, nexp
-           write (uout,'(2X,99(A,X))') string(atom(i),2), string(lname(j),2), string(k,4), &
-              string(nval(k),2), string(eexp(k),'f',10,4,4), string(efile(i,j,k))
-        end do
-     end do
-  end do
-  write (uout,*)
+  ! write the input data information
+  call global_printinfo()
+
+  ! read the information from the external files
+  call readfiles()
 
   ! do stuff
 
