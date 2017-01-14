@@ -15,17 +15,29 @@
 ! along with this program.  If not, see
 ! <http://www.gnu.org/licenses/>.
 program acpfit
+  use calc, only: calc_stats, runfit_inf
   use files, only: makefilenames, readfiles
   use global
-  use types
+  use types, only: realloc, stats
   use tools_io
   implicit none
 
   character(len=:), allocatable :: optv, subline, word, word2, line, aux
-  integer :: lp, i, ii, j, k, idx, idum, idum2, iatom, iexp, il
+  integer :: lp, lp2, i, ii, j, k, idx, idum, idum2, iatom, iexp, il
   integer :: natoms_ang
   logical :: ok
   real*8 :: rdum
+  type(stats) :: statempty
+  character(len=:), allocatable :: outempty
+
+  integer :: imode
+  integer, parameter :: imode_fit = 1
+  integer, parameter :: imode_fit_manual = 2
+  integer, parameter :: imode_eval = 3
+  integer, parameter :: imode_no = 4
+  integer :: ifit_n 
+  real*8 :: fit_maxnorm
+  real*8 :: fit_maxcoef
 
   ! energy terms files in manual input
   integer :: nefilesi ! number of files
@@ -53,6 +65,10 @@ program acpfit
   call global_init()
   if (allocated(efilei)) deallocate(efilei)
   allocate(efilei(1))
+  outempty = ""
+  fit_maxnorm = -1d0
+  fit_maxcoef = -1d0
+  imode = imode_no
 
   ! parse the input
   do while (getline(uin,line))
@@ -139,7 +155,7 @@ program acpfit
         if (.not.ok) iset_step(nset) = 1
      elseif (equal(word,'file')) then
         ! FILE ...
-        word = getword(line,lp)
+        word = lgetword(line,lp)
         if (equal(word,'empty')) then
            ! FILE EMPTY emptyfile.s
            emptyfile = trim(line(lp:))
@@ -164,7 +180,69 @@ program acpfit
            if (nefilesi > ubound(efilei,1)) &
               call realloc(efilei,2*nefilesi)
            efilei(nefilesi) = trim(line(lp:))
+        else
+           call ferror("acpfit","unknown FILE keyword: " // word,faterr)
         end if
+     elseif (equal(word,'output')) then
+        ! OUTPUT ...
+        word = lgetword(line,lp)
+        if (equal(word,'empty')) then
+           ! OUTPUT EMPTY file.s
+           outempty = trim(line(lp:))
+        else
+           call ferror("acpfit","unknown OUTPUT keyword: " // word,faterr)
+        end if
+     elseif (equal(word,'run')) then
+        ! RUN ...
+        word = lgetword(line,lp)
+        if (equal(word,'fit')) then
+           ! RUN FIT ...
+           imode = imode_fit
+           lp2 = lp
+           word = lgetword(line,lp)
+           ifit_n = 0
+           if (equal(word,"inf")) then
+              ! RUN FIT INF ...
+              ifit_n = -1
+           else
+              lp = lp2
+              ok = isinteger(idum,line,lp)
+              if (ok) then
+                 ! RUN FIT N
+                 ifit_n = idum
+              else
+                 ! RUN FIT (manual op.)
+                 imode = imode_fit_manual
+              end if
+           end if
+
+           ! RUN ... [MAXNORM norm.r] [MAXCOEF coef.r]
+           do while(.true.)
+              word = lgetword(line,lp)
+              if (equal(word,"maxnorm")) then
+                 ok = isreal(fit_maxnorm,line,lp)
+                 if (.not.ok) &
+                    call ferror("acpfit","wrong RUN FIT MAXNORM syntax",faterr)
+              elseif (equal(word,"maxcoef")) then
+                 ok = isreal(fit_maxcoef,line,lp)
+                 if (.not.ok) &
+                    call ferror("acpfit","wrong RUN FIT MAXCOEF syntax",faterr)
+              elseif (len_trim(word) > 0) then
+                 call ferror("acpfit","unknown RUN FIT keyword: " // word,faterr)
+              else
+                 exit
+              end if
+           end do
+        elseif (equal(word,'eval')) then
+           ! RUN EVAL ...
+           imode = imode_eval
+        elseif (len_trim(word) > 0) then
+           call ferror("acpfit","unknown RUN keyword: " // word,faterr)
+        else
+           ! RUN
+           imode = imode_no
+        endif
+        exit
      elseif (len_trim(word) > 0) then
         call ferror("acpfit","unknown keyword: " // word,faterr)
      end if
@@ -196,7 +274,20 @@ program acpfit
   ! read the information from the external files
   call readfiles()
 
-  ! do stuff
+  ! calculate the statistics for the empty
+  call calc_stats(yempty,0d0,0d0,statempty)
+  call global_printeval("empty",yempty,statempty,outempty)
+
+  ! run the calculation
+  if (imode == imode_fit) then
+     if (ifit_n < 0) then
+        ! all terms in the ACP
+        call runfit_inf()
+     else
+     end if
+  elseif (imode == imode_fit_manual) then
+  elseif (imode == imode_eval) then
+  end if
 
   write (uout,'("ACPFIT ended succesfully (",A," WARNINGS, ",A," COMMENTS)")')&
      string(nwarns), string(ncomms)

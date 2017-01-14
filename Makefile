@@ -12,7 +12,7 @@ LDFLAGS = -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -liomp5 -lpthread -open
 # LDFLAGS = -fopenmp 
 
 BINS=acpfit
-OBJS=files.o global.o types.o tools_io.o 
+OBJS=files.o global.o types.o tools_io.o calc.o
 INCLUDE=
 
 %.o: %.f90
@@ -38,7 +38,8 @@ acpfit: $(OBJS) acpfit.o
 	$(FC) -o acpfit $(LDFLAGS) $(OBJS) acpfit.o $(LIBS)
 
 # Object dependencies
+acpfit.o : calc.mod
 acpfit.o : files.mod
-files.o acpfit.o : global.mod
-types.o tools.o global.o files.o acpfit.o : tools_io.mod
+files.o calc.o acpfit.o : global.mod
+types.o tools.o global.o files.o calc.o acpfit.o : tools_io.mod
 global.o acpfit.o : types.mod

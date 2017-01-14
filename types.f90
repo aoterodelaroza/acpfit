@@ -19,6 +19,7 @@ module types
   private
   public :: realloc
   public :: column
+  public :: stats
 
   ! overloaded functions
   interface realloc
@@ -46,6 +47,16 @@ module types
      integer :: iexp ! exponent index
      real*8 :: eexp ! exponent value
   end type column
+
+  ! statistics for an evaluation
+  type stats
+     real*8 :: norm ! norm of the coefficients
+     real*8 :: maxcoef ! maximum absolute value of the coefficients
+     real*8 :: wrms ! wrms for the fit
+     integer :: nset ! number of subsets
+     real*8, allocatable :: rms(:) ! rms for each of the subsets
+     real*8, allocatable :: mae(:) ! mae for each of the subsets
+  end type stats
 
 contains
 

@@ -1213,6 +1213,9 @@ contains
     write (uout,'("    at system number ini.i and ends at end.i, with step step.i. The step argument")')
     write (uout,'("    is optional.")')
     write (uout,'("")')
+    write (uout,'("  OUTPUT EMPTY file.s")')
+    write (uout,'("    Write the statistics of the empty to file.s instead of the standard output.")')
+    write (uout,'("")')
 
   end subroutine help_me
 

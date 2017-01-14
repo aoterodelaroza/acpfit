@@ -103,13 +103,18 @@ contains
   subroutine readfiles()
     use global, only: datapath, emptyfile, yempty, yref, reffile, w, wfile, &
        namesfile, names, nfit, ydisp, nsubfiles, subfile, natoms, lmax, nexp, &
-       x, efile, ncols
+       x, efile, ncols, ytarget, maxnamelen
     use tools_io, only: ferror, faterr, fopen_read, getline, fclose, string
 
     character(len=:), allocatable :: file, line
     logical :: ok
     integer :: lu, i, j, k, n
     real*8 :: xaux(nfit)
+
+    ! w
+    if (allocated(w)) deallocate(w)
+    allocate(w(nfit))
+    call gety(trim(datapath) // trim(wfile),"weights",nfit,w)
 
     ! empty
     if (allocated(yempty)) deallocate(yempty)
@@ -121,11 +126,6 @@ contains
     allocate(yref(nfit))
     call gety(trim(datapath) // trim(reffile),"reference",nfit,yref)
 
-    ! w
-    if (allocated(w)) deallocate(w)
-    allocate(w(nfit))
-    call gety(trim(datapath) // trim(wfile),"weights",nfit,w)
-
     ! names
     if (allocated(names)) deallocate(names)
     allocate(names(nfit))
@@ -134,9 +134,11 @@ contains
     if (.not.ok) &
        call ferror("readfiles","File not found (names): " // trim(file),faterr)
     lu = fopen_read(file)
+    maxnamelen = 0
     do i = 1, nfit
        ok = getline(lu,line,.true.)
        names(i) = adjustl(line)
+       maxnamelen = max(len_trim(names(i)),maxnamelen)
     end do
     call fclose(lu)
 
@@ -148,6 +150,11 @@ contains
        call gety(trim(datapath) // trim(subfile(i)),"subfile-"//string(i),nfit,xaux)
        ydisp = ydisp + xaux
     end do
+
+    ! make the target
+    if (allocated(ytarget)) deallocate(ytarget)
+    allocate(ytarget(nfit))
+    ytarget = yref - ydisp
 
     ! energy terms 
     if (allocated(x)) deallocate(x)

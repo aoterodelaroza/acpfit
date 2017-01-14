@@ -62,6 +62,7 @@ module global
   real*8, allocatable :: x(:,:) !< matrix containing the BSIP term energies
   real*8, allocatable :: ytarget(:) !< target of the fit
   character*128, allocatable :: names(:) !< names of the systems in the fitting set
+  integer :: maxnamelen !< maximum length of the names
 
 contains
   
@@ -101,32 +102,42 @@ contains
 
   !> Check the sanity of the global variables
   subroutine global_check(natoms_ang)
-    use tools_io, only: ferror, faterr
-    integer :: natoms_ang
+    use tools_io, only: ferror, faterr, string
+    integer, intent(in) :: natoms_ang
+
+    integer :: i
 
     ! check and output data path
     if (len_trim(datapath) < 1) &
-       call ferror("acpfit","no path to the data; use DATAPATH",faterr)
+       call ferror("global_check","no path to the data; use DATAPATH",faterr)
 
     ! check atoms
-    if (natoms <= 0) call ferror("acpfit","no atoms in input; use ATOM",faterr)
+    if (natoms <= 0) call ferror("global_check","no atoms in input; use ATOM",faterr)
 
     ! check angular momentum lmax
     if (natoms_ang == 0) & 
-       call ferror("acpfit","no maximum angular momentum; use LMAX",faterr)
+       call ferror("global_check","no maximum angular momentum; use LMAX",faterr)
     if (natoms /= natoms_ang) & 
-       call ferror("acpfit","number of atoms in ATOM and LMAX inconsistent",faterr)
+       call ferror("global_check","number of atoms in ATOM and LMAX inconsistent",faterr)
     maxlmax = maxval(lmax)
 
     ! check exponents
     if (nexp == 0) &
-       call ferror("acpfit","no exponent information; use EXP",faterr)
+       call ferror("global_check","no exponent information; use EXP",faterr)
     if (any(nval < 0) .or. any(nval > 2)) &
-       call ferror("acpfit","n values can only be 0, 1, or 2",faterr)
+       call ferror("global_check","n values can only be 0, 1, or 2",faterr)
 
     ! check number of molecules
     if (nfit == 0) &
-       call ferror("acpfit","no number of molecules in fitting set; use NFIT",faterr)
+       call ferror("global_check","no number of molecules in fitting set; use NFIT",faterr)
+
+    ! check that the sets are sane
+    do i = 1, nset
+       if (iset_ini(i) < 1 .or. iset_ini(i) > nfit) &
+          call ferror("global_check","erroneous initial system in set " // string(iset_label(i)),faterr)
+       if (iset_ini(i)+iset_n(i)*iset_step(i)-1 > nfit) &
+          call ferror("global_check","erroneous final system in set " // string(iset_label(i)),faterr)
+    end do
 
   end subroutine global_check
 
@@ -137,7 +148,8 @@ contains
     integer :: i, j, k
 
     write (uout,'("+ Summary of input data")')
-    write (uout,'("Atomic informaton: ")')
+    write (uout,'("Number of atoms: ",A)') string(natoms)
+    write (uout,'("List of atoms:")')
     write (uout,'("# Id At lmax")')
     do i = 1, natoms
        write (uout,'(2X,99(A,X))') string(i,2,ioj_left), string(atom(i),3), string(lname(lmax(i)),2)
@@ -147,13 +159,14 @@ contains
     do i = 1, nexp
        write (uout,'(2X,99(A,X))') string(i,2,ioj_left), string(nval(i),3), string(eexp(i),'f',12,8,4)
     end do
+    write (uout,'("Size of the fitting set: ",A)') string(nfit)
     write (uout,'("List of evaluation sets: ")')
     write (uout,'("#Id  ini  num  step name")')
     do i = 1, nset
        write (uout,'(2X,99(A,X))') string(i,2,ioj_left), string(iset_ini(i),5), string(iset_n(i),4), &
           string(iset_step(i),3), string(iset_label(i))
     end do
-    write (uout,'("Size of the fitting set: ",A)') string(nfit)
+    write (uout,'("Number of columns: ",A)') string(ncols)
     write (uout,'("Data path: ",A)') string(datapath)
     write (uout,'("Names file: ",A)') string(namesfile)
     write (uout,'("Weight file: ",A)') string(wfile)
@@ -165,16 +178,6 @@ contains
           write (uout,'(2X,A,": ",A)') string(i), string(subfile(i))
        end do
     end if
-    write (uout,'("List of energy term files: ")')
-    write (uout,'("#At ang iexp n   exponent  filename")')
-    do i = 1, natoms
-       do j = 1, lmax(i)
-          do k = 1, nexp
-             write (uout,'(2X,99(A,X))') string(atom(i),2), string(lname(j),2), string(k,4), &
-                string(nval(k),2), string(eexp(k),'f',10,4,4), string(efile(i,j,k))
-          end do
-       end do
-    end do
     write (uout,*)
 
   end subroutine global_printinfo
@@ -216,5 +219,60 @@ contains
     end do
 
   end subroutine global_fillcol
+
+  ! Print the results of an evaluation
+  subroutine global_printeval(label,y,stat,ofile)
+    use tools_io, only: ferror, faterr, uout, string, ioj_left, ioj_center, ioj_right, &
+       fopen_write, fclose
+    use types, only: stats
+    
+    character*(*), intent(in) :: label !< label 
+    type(stats), intent(in), optional :: stat !< statistics
+    real*8, intent(in), optional :: y(:) !< list of individual results 
+    character*(*), intent(in), optional :: ofile !< output file
+    
+    integer :: i, lu
+    logical :: doclose
+
+    lu = uout
+    doclose = .false.
+    if (present(ofile)) then
+       if (len_trim(ofile) > 0) then
+          lu = fopen_write(ofile)
+          doclose = .true.
+          write (uout,'("+ Evaluation (",A,") written to file: ",A/)') string(label), string(ofile)
+       end if
+    end if
+
+    write (lu,'("# Evaluation: ",A)') string(label)
+
+    if (present(stat)) then
+       write (lu,'("# Statistics: ")')
+       write (lu,'("#   norm =    ",F12.6)') stat%norm
+       write (lu,'("#   maxcoef = ",F12.6)') stat%maxcoef
+       write (lu,'("#   wrms =    ",F14.8)') stat%wrms
+       do i = 1, nset
+          write (lu,'("#",3X,A," rms = ",A," mae = ",A)') &
+             string(iset_label(i),10,ioj_left), string(stat%rms(i),'f',14,8), &
+             string(stat%mae(i),'f',14,8)
+       end do
+    end if
+
+    if (present(y)) then
+       if (size(y,1) /= nfit) &
+          call ferror("global_printeval","inconsistent size of y",faterr)
+
+       write (lu,'("# Id                     Name                     weight        yscf                ytotal                yref                 diff")')
+       do i = 1, nfit
+          write (lu,'(99(A,X))') string(i,6,ioj_left), string(names(i),maxnamelen,ioj_center), &
+             string(w(i),'f',5,1,ioj_right), string(y(i),'f',20,10,8), string(y(i)+ydisp(i),'f',20,10,8), &
+             string(yref(i),'f',20,10,8), string(y(i)+ydisp(i)-yref(i),'f',20,10,8)
+       end do
+       write (lu,*)
+    end if
+
+    if (doclose) call fclose(lu)
+
+  end subroutine global_printeval
 
 end module global
