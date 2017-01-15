@@ -1248,6 +1248,16 @@ contains
     write (uout,'("  END|ENDRUN")')
     write (uout,'("    Fit the ACP that uses the terms indicated by the user.")')
     write (uout,'("")')
+    write (uout,'("  RUN EVAL")')
+    write (uout,'("    atom1.s l1.s n1.s exp1.s coef1.r")')
+    write (uout,'("    atom2.s l2.s n2.s exp2.s coef1.r")')
+    write (uout,'("    ...")')
+    write (uout,'("  END|ENDRUN")')
+    write (uout,'("    Evaluate the provided ACP with the current data.")')
+    write (uout,'("")')
+    write (uout,'("  RUN EVAL file.acp")')
+    write (uout,'("    Evaluate the provided ACP (file in Gaussian format) with the current data.")')
+    write (uout,'("")')
 
   end subroutine help_me
 

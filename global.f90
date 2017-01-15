@@ -27,6 +27,9 @@ module global
   public :: global_printeval
   public :: global_printacp
   public :: global_input
+  public :: whichatom
+  public :: whichl
+  public :: whichcol
 
   ! file prefix
   character(len=:), allocatable :: fileroot !< file prefix
@@ -59,6 +62,7 @@ module global
   character(len=:), allocatable :: outempty !< name of the output file
   character(len=:), allocatable :: outeval !< name of the evaluation output file
   character(len=:), allocatable :: outacp !< name of the acp output file
+  character(len=:), allocatable :: inacp !< name of the acp input file
   character*255, allocatable :: efile(:,:,:) !< name of the energy terms files
   character*255, allocatable :: subfile(:) !< name of the subtract energy file
   integer :: nsubfiles
@@ -88,7 +92,8 @@ module global
   integer, parameter :: imode_fit = 1
   integer, parameter :: imode_fit_manual = 2
   integer, parameter :: imode_eval = 3
-  integer, parameter :: imode_no = 4
+  integer, parameter :: imode_eval_file = 4
+  integer, parameter :: imode_no = 5
 
 contains
   
@@ -316,7 +321,7 @@ contains
     real*8, intent(in) :: coef(ndim) !< coefficients
     character*(*), intent(in), optional :: ofile !< output file
 
-    integer :: catom, cang, i, id, j, n, lu
+    integer :: catom, cang, i, id, j, n, lu, nl(natoms)
     logical :: doclose
 
     ! open the output lu
@@ -334,6 +339,12 @@ contains
        write (lu,'("# ACP (",A,")")') string(label)
     end if
 
+    ! maximum l for each atom
+    nl = 0
+    do i = 1, ndim
+       nl(col(idx(i))%iatom) = max(nl(col(idx(i))%iatom),col(idx(i))%l-1)
+    end do
+
     catom = -1
     cang = 0
     do i = 1, ndim
@@ -341,8 +352,8 @@ contains
        if (col(id)%iatom /= catom) then
           catom = col(id)%iatom
           cang = 0
-          write (lu,'(A," 0")') string(atom(catom))
-          write (lu,'(A,X,A," 0")') string(atom(catom)), string(lmax(catom)-1)
+          write (lu,'("-",A," 0")') string(atom(catom))
+          write (lu,'(A,X,A," 0")') string(atom(catom)), string(nl(catom))
        end if
        if (col(id)%l /= cang) then
           do j = cang+1, col(id)%l-1
@@ -576,8 +587,15 @@ contains
                 end do
              end if
           elseif (equal(word,'eval')) then
-             ! RUN EVAL ...
-             imode = imode_eval
+             word = getword(line,lp)
+             if (len_trim(word) == 0) then
+                ! RUN EVAL ...
+                imode = imode_eval
+             else
+                ! RUN EVAL file.acp
+                imode = imode_eval_file
+                inacp = word
+             endif
           elseif (len_trim(word) > 0) then
              call ferror("acpfit","unknown RUN keyword: " // word,faterr)
           else
@@ -594,5 +612,71 @@ contains
     call global_check(natoms_ang)
 
   end subroutine global_input
+
+  ! Identify an atom by its name. Zero if the atom is not found.
+  function whichatom(at)
+    use tools_io, only: lower, equal
+    character*(*), intent(in) :: at
+    integer :: whichatom
+
+    integer :: i
+    character(len=:), allocatable :: at0, at1
+
+    at0 = lower(trim(adjustl(at)))
+    if (at0(1:1) == "-") then
+       at1 = at0(2:)
+    else
+       at1 = at0
+    endif
+
+    whichatom = 0
+    do i = 1, natoms
+       if (equal(lower(trim(atom(i))),at1)) then
+          whichatom = i
+          exit
+       end if
+    end do
+
+  end function whichatom
+
+  ! Identify an angular momentum channel by its name. Zero if it
+  ! is not found.
+  function whichl(ll)
+    use tools_io, only: lower
+    character*1, intent(in) :: ll
+    integer :: whichl
+
+    integer :: i
+
+    whichl = 0
+    do i = 1, maxlmax
+       if (lower(ll) == lname(i)) then
+          whichl = i
+          exit
+       end if
+    end do
+
+  end function whichl
+
+  ! Determine the column that corresponds to the given atom (iat)
+  ! angular momentum (il), n value (n), and exponent (e), or 0 if it
+  ! does not exist.
+  function whichcol(iat,l,n,e)
+    integer, intent(in) :: iat, l, n
+    real*8, intent(in) :: e
+    integer :: whichcol
+
+    integer :: i
+
+    whichcol = 0
+    do i = 1, ncols
+       if (col(i)%iatom == iat .and. col(i)%l == l .and.&
+          col(i)%n == n .and. abs(col(i)%eexp - e) < 1d-10) then
+          whichcol = i
+          exit
+       end if
+    end do
+
+  end function whichcol
 
 end module global

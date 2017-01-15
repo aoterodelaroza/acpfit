@@ -6,6 +6,8 @@ module calc
   public :: runfit_inf
   public :: runfit_scanatom
   public :: runfit_manual
+  public :: runeval_input
+  public :: runeval_file
   private :: choose
   private :: comb
 
@@ -256,6 +258,7 @@ contains
 
   end subroutine runfit_scanatom
 
+  ! Find the least-squares ACP with the user-provided ACP terms.
   subroutine runfit_manual(outeval,outacp)
     use global, only: natoms, ncols, col, lname, nfitw, x, nfit, global_printeval,&
        global_printacp
@@ -324,6 +327,179 @@ contains
     call global_printacp("final",n,idx,coef(1:n),outacp)
 
   end subroutine runfit_manual
+
+  ! Evaluate a given ACP using the current data. From the input file.
+  subroutine runeval_input(outeval)
+    use global, only: natoms, ncols, col, lname, nfitw, x, nfit, global_printeval,&
+       global_printacp, coef0
+    use tools_io, only: uin, getline, lgetword, equal, isinteger, isreal, &
+       ferror, faterr, lower, string
+    use types, only: realloc, stats
+    character*(*), intent(in) :: outeval
+
+    integer :: n, ninp, lp, i
+    integer, allocatable :: idx(:)
+    character(len=:), allocatable :: word, line, lstr
+    logical :: ok
+    real*8 :: rinp, y(nfit), r2inp
+    real*8, allocatable :: coef(:)
+    type(stats) :: stat
+
+    ! initialize
+    allocate(idx(2*natoms))
+    allocate(coef(2*natoms))
+    n = 0
+
+    ! parse the input file
+    do while (getline(uin,line))
+       lp=1
+       word = lgetword(line,lp)
+       if (equal(word,"end") .or. equal(word,"endrun")) then
+          exit
+       else
+          lstr = lgetword(line,lp)
+          ok = isinteger(ninp,line,lp)
+          ok = ok .and. isreal(rinp,line,lp)
+          ok = ok .and. isreal(r2inp,line,lp)
+          if (.not.ok) &
+             call ferror("runeval_input","Invalid term+coef in RUN EVAL: "//trim(adjustl(line)),faterr)
+          
+          ok = .false.
+          do i = 1, ncols
+             if (equal(lower(col(i)%atom),word) .and. &
+                equal(lstr,lower(lname(col(i)%l))) .and. col(i)%n == ninp .and.&
+                abs(col(i)%eexp - rinp) < 1d-10) then
+                n = n + 1
+                if (n > size(idx,1)) then
+                   call realloc(idx,2*n)
+                   call realloc(coef,2*n)
+                end if
+                idx(n) = i
+                coef(n) = r2inp / coef0
+                ok = .true.
+                exit
+             end if
+          end do
+          if (.not.ok) &
+             call ferror("runeval_input","ACP term not found: "//trim(adjustl(line)),faterr)
+       end if
+    end do
+    call realloc(idx,n)
+    call realloc(coef,n)
+    
+    ! check that we don't have too many terms
+    if (n == 0) &
+       call ferror("runeval_input","no ACP terms in manual RUN EVAL",faterr)
+
+    ! evaluate
+    y = matmul(x(:,idx),coef(1:n))
+
+    ! print stats and evaluation
+    call calc_stats(y,stat,coef(1:n))
+    call global_printeval("final",y,stat,outeval)
+    
+  end subroutine runeval_input
+
+  ! Evaluate a given ACP using the current data. From an external file.
+  subroutine runeval_file(outeval,inacp)
+    use global, only: natoms, ncols, col, lname, nfitw, x, nfit, global_printeval,&
+       global_printacp, coef0, atom, whichatom, whichcol
+    use tools_io, only: uin, getline, lgetword, equal, isinteger, isreal, &
+       ferror, faterr, lower, string, fopen_read, fclose
+    use types, only: realloc, stats
+    character*(*), intent(in) :: outeval
+    character*(*), intent(in) :: inacp
+
+    integer :: nblock
+    integer :: n, ninp, lp, i, j, lu, iatom, iang, nterms
+    integer, allocatable :: idx(:)
+    character(len=:), allocatable :: word, line, lstr
+    logical :: ok
+    real*8 :: rinp, y(nfit), r2inp
+    real*8, allocatable :: coef(:)
+    type(stats) :: stat
+    integer :: idum
+    real*8 :: rdum1, rdum2
+
+    ! initialize
+    allocate(idx(2*natoms))
+    allocate(coef(2*natoms))
+    n = 0
+
+    ! parse the external file
+    lu = fopen_read(inacp)
+    do while (getline(lu,line))
+       lp=1
+
+       ! read the atom
+       word = lgetword(line,lp)
+       iatom = whichatom(word)
+       if (iatom == 0) &
+          call ferror("runeval_file","Unknown atom: "//trim(word),faterr)
+       
+       ! read the number of blocks
+       ok = getline(lu,line,.true.)
+       lp = 1
+       word = lgetword(line,lp)
+       ok  = isinteger(nblock,line,lp)
+       if (.not.ok) &
+          call ferror("runeval_file","Could not parse line: "//trim(line),faterr)
+       nblock = nblock + 1
+
+       ! read the blocks
+       do iang = 1, nblock
+          ! label
+          ok = getline(lu,line,.true.)
+          lp = 1
+          word = lgetword(line,lp)
+          if (lname(iang) /= word(1:1)) &
+             call ferror("runeval_file","Unknown ang. mom. label: "//trim(line),faterr)
+
+          ! number of terms
+          ok = getline(lu,line,.true.)
+          lp = 1
+          ok = isinteger(nterms,line,lp)
+          if (.not.ok) &
+             call ferror("runeval_file","Incorrect number of terms: "//trim(line),faterr)
+
+          ! read the terms
+          do j = 1, nterms
+             n = n + 1
+             if (n > size(idx,1)) then
+                call realloc(idx,2*n)
+                call realloc(coef,2*n)
+             end if
+             ok = getline(lu,line,.true.)
+             lp = 1
+             ok = isinteger(idum,line,lp)
+             ok = ok .and. isreal(rdum1,line,lp)
+             ok = ok .and. isreal(rdum2,line,lp)
+             if (.not.ok) &
+                call ferror("runeval_file","Incorrect term: "//trim(line),faterr)
+
+             idx(n) = whichcol(iatom,iang,idum,rdum1)
+             if (idx(n) == 0) &
+                call ferror("runeval_file","No data found for term: "//trim(line),faterr)
+             coef(n) = rdum2 / coef0
+          end do
+       end do
+    end do
+    call fclose(lu)
+    call realloc(idx,n)
+    call realloc(coef,n)
+    
+    ! check that we don't have too many terms
+    if (n == 0) &
+       call ferror("runeval_file","no ACP terms in manual RUN EVAL acp.file",faterr)
+
+    ! evaluate
+    y = matmul(x(:,idx),coef(1:n))
+
+    ! print stats and evaluation
+    call calc_stats(y,stat,coef(1:n))
+    call global_printeval("final",y,stat,outeval)
+    
+  end subroutine runeval_file
 
   ! Run least squares using ndim columns given by idx. Returns the
   ! coefficients in coef(1:ndim).

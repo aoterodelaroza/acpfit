@@ -5,7 +5,6 @@ lmax p p  p p p p p s
 exp 2 0.08 0.10 0.12 0.14 0.16 0.18 0.20 0.22 0.24 0.26 \
       0.28 0.40 0.60 0.80 1.00 1.20 1.40 1.60 1.80 2.00
 nfit 3397
-file sub disp.dat
 set s22 2 22 5 
 set s66 113 66 8
 set s22x5 1 110 
@@ -19,25 +18,24 @@ set bdexrel 1622 340
 set dipole 1960 128
 set nci 1 1222
 set ene 2088 1310
-output empty blah1.1
-output eval blah2.1
-output acp blah3.1
+output empty fit3.empty
+output eval fit3.eval
+output acp fit3.acp
 run fit
-F  p 2 0.26
-F  p 2 0.60
-O  l 2 1.00
-O  p 2 0.16
+F  p 2 0.28
+F  p 2 0.40
+O  l 2 0.80
+O  p 2 0.20
 Cl l 2 0.40
-Cl p 2 0.16
-N  l 2 0.80
-N  s 2 0.16
-S  l 2 0.14
+Cl p 2 0.18
+N  l 2 0.60
+N  p 2 0.20
 S  l 2 0.40
-C  l 2 0.08
-C  l 2 1.00
-P  l 2 0.08
-P  p 2 0.22
-H  s 2 0.60
-H  s 2 1.00
+S  l 2 0.60
+C  l 2 0.60
+C  p 2 0.24
+P  l 2 0.12
+P  l 2 0.20
+H  l 2 0.28
+H  s 2 2.00
 endrun
-

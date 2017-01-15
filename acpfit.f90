@@ -15,11 +15,13 @@
 ! along with this program.  If not, see
 ! <http://www.gnu.org/licenses/>.
 program acpfit
-  use calc, only: calc_stats, runfit_inf, runfit_scanatom, runfit_manual
+  use calc, only: calc_stats, runfit_inf, runfit_scanatom, runfit_manual, &
+     runeval_input, runeval_file
   use files, only: makefilenames, readfiles
   use global, only: fileroot, nset, iset_label, iset_ini, iset_n, iset_step, nfit,&
      outempty, outeval, outacp, imode_fit, imode_fit_manual, imode_eval,&
-     global_init, global_input, global_fillcol, global_printinfo, global_printeval
+     imode_eval_file, global_init, global_input, global_fillcol, global_printinfo,&
+     global_printeval,  inacp
   use types, only: realloc, stats
   use tools_io, only: equal, lgetword, getline, uin, uout, isreal, isinteger, getword, &
      string, nwarns, ncomms, ferror, faterr, ioinit, stdargs, help_me, tictac, &
@@ -101,6 +103,9 @@ program acpfit
   elseif (imode == imode_fit_manual) then
      call runfit_manual(outeval,outacp)
   elseif (imode == imode_eval) then
+     call runeval_input(outeval)
+  elseif (imode == imode_eval_file) then
+     call runeval_file(outeval,inacp)
   end if
 
   write (uout,'("ACPFIT ended succesfully (",A," WARNINGS, ",A," COMMENTS)")')&
