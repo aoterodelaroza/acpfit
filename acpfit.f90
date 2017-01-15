@@ -23,15 +23,12 @@ program acpfit
      imode_eval_file, global_init, global_input, global_fillcol, global_printinfo,&
      global_printeval,  inacp
   use types, only: realloc, stats
-  use tools_io, only: equal, lgetword, getline, uin, uout, isreal, isinteger, getword, &
-     string, nwarns, ncomms, ferror, faterr, ioinit, stdargs, help_me, tictac, &
+  use tools_io, only: equal, lgetword, getline, uout, isreal, isinteger, getword, &
+     string, nwarns, ncomms, ioinit, stdargs, help_me, tictac, &
      start_clock, print_clock
   implicit none
 
-  character(len=:), allocatable :: optv, subline, word, word2, line, aux
-  integer :: lp, lp2, i, ii, j, k, idx, idum, idum2, iatom, iexp, il
-  logical :: ok
-  real*8 :: rdum
+  character(len=:), allocatable :: optv
   type(stats) :: statempty
   real*8, allocatable :: ydum(:)
   integer :: ifit_n, imode

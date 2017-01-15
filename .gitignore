@@ -6,8 +6,13 @@
 # binary
 acpfit
 
-# data files
-dat/
+# test files
+tests/eval*empty
+tests/eval*eval
+tests/fit*empty
+tests/fit*eval
+tests/fit*acp
+tests/*out
 
 # emacs
 *~

@@ -18,7 +18,7 @@ contains
   ! calculate the statistics for a given evaluation
   subroutine calc_stats(y,stat,coef)
     use types, only: stats
-    use global, only: nfit, maxnamelen, w, ydisp, yref, names, nset, ytarget, &
+    use global, only: nfit, w, nset, ytarget, &
        iset_ini, iset_step, iset_n, coef0
 
     real*8, intent(in) :: y(:) ! results of the fit (no dispersion)
@@ -70,7 +70,7 @@ contains
 
   ! Fit the ACP with all possible terms. Good for testing.
   subroutine runfit_inf(outeval,outacp)
-    use global, only: ncols, nfitw, nfit, global_printeval, x, yempty, global_printacp
+    use global, only: ncols, nfitw, nfit, global_printeval, x, global_printacp
     use types, only: stats
     use tools_io, only: uout, faterr, ferror, string
     
@@ -111,8 +111,8 @@ contains
   ! subject to the maximum norm (maxnorm) and/or maximum absolute coefficient
   ! (maxcoef) constraints.
   subroutine runfit_scanatom(nuse,maxnorm,maxcoef,outeval,outacp)
-    use global, only: ncols, nfitw, nfit, global_printeval, x, yempty, global_printacp, natoms,&
-       atom, maxlmax, lmax, nexp, w, ywtarget, xw, coef0, col, lname
+    use global, only: ncols, nfitw, nfit, global_printeval, x, global_printacp, natoms,&
+       atom, maxlmax, lmax, nexp, w, ywtarget, coef0, col, lname
     use types, only: stats
     use tools_io, only: uout, string, ferror, faterr, string, ioj_left
     
@@ -122,13 +122,13 @@ contains
     character*(*), intent(in) :: outacp
 
     character(len=:), allocatable :: str, aux, aux2
-    integer :: i, j, k, ncyc, n1, n2, nanuse, nanz, n, nsame, id
+    integer :: i, j, k, ncyc, n1, n2, nanuse, nanz, nsame, id
     real*8 :: coef(nfitw), y(nfitw), y0(nfit), wrms, minwrms, norm, minnorm
     real*8 :: acoef, minacoef
     type(stats) :: stat
     integer, allocatable :: iatidx(:,:), natidx(:)
     integer :: co(nuse), idx(natoms*nuse), idx0(natoms*nuse)
-    integer :: idxnz(natoms*nuse), idxsave(nuse)
+    integer :: idxsave(nuse)
 
     ! header
     write (uout,'("+ Generating ACP using atom iterations, with ",A," terms per atom")') string(nuse)
@@ -330,7 +330,7 @@ contains
 
   ! Evaluate a given ACP using the current data. From the input file.
   subroutine runeval_input(outeval)
-    use global, only: natoms, ncols, col, lname, nfitw, x, nfit, global_printeval,&
+    use global, only: natoms, ncols, col, lname, x, nfit, global_printeval,&
        global_printacp, coef0
     use tools_io, only: uin, getline, lgetword, equal, isinteger, isreal, &
        ferror, faterr, lower, string
@@ -402,20 +402,20 @@ contains
 
   ! Evaluate a given ACP using the current data. From an external file.
   subroutine runeval_file(outeval,inacp)
-    use global, only: natoms, ncols, col, lname, nfitw, x, nfit, global_printeval,&
-       global_printacp, coef0, atom, whichatom, whichcol
-    use tools_io, only: uin, getline, lgetword, equal, isinteger, isreal, &
+    use global, only: natoms, lname, x, nfit, global_printeval,&
+       global_printacp, coef0, whichatom, whichcol
+    use tools_io, only: getline, lgetword, equal, isinteger, isreal, &
        ferror, faterr, lower, string, fopen_read, fclose
     use types, only: realloc, stats
     character*(*), intent(in) :: outeval
     character*(*), intent(in) :: inacp
 
     integer :: nblock
-    integer :: n, ninp, lp, i, j, lu, iatom, iang, nterms
+    integer :: n, lp, j, lu, iatom, iang, nterms
     integer, allocatable :: idx(:)
-    character(len=:), allocatable :: word, line, lstr
+    character(len=:), allocatable :: word, line
     logical :: ok
-    real*8 :: rinp, y(nfit), r2inp
+    real*8 :: y(nfit)
     real*8, allocatable :: coef(:)
     type(stats) :: stat
     integer :: idum

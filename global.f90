@@ -180,7 +180,7 @@ contains
   subroutine global_printinfo()
     use tools_io, only: string, ioj_left, uout
 
-    integer :: i, j, k
+    integer :: i
 
     write (uout,'("+ Summary of input data")')
     write (uout,'("Number of atoms: ",A)') string(natoms)

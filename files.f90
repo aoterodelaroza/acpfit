@@ -30,7 +30,8 @@ contains
   !> names.  Requires a complete set of input data (natoms, atom, lmax, etc).
   subroutine makefilenames(nefilesi,efilei)
     use tools_io, only: lgetword, isinteger, isreal, ferror, faterr, lower, equal, string
-    use global, only: natoms, atom, lmax, maxlmax, lname, nexp, nval, eexp, efile
+    use global, only: natoms, atom, lmax, maxlmax, lname, nexp, nval, eexp, efile,&
+       whichatom, whichl
     integer, intent(in) :: nefilesi 
     character*(*), intent(in) :: efilei(:) 
     
@@ -62,25 +63,13 @@ contains
           call ferror("acpfit","incorrect syntax in FILE ETERM",faterr)
 
        ! atom - iatom
-       iatom = 0
-       do ii = 1, natoms
-          if (equal(word,lower(atom(ii)))) then
-             iatom = ii
-             exit
-          end if
-       end do
+       iatom = whichatom(word)
        if (iatom == 0) &
           call ferror("acpfit","unknown atom in FILE ETERM",faterr)
 
        ! the angular momentum channel - il
-       il = 0
-       do ii = 1, lmax(iatom)
-          if (word2(1:1) == lname(ii)) then
-             il = ii
-             exit
-          end if
-       end do
-       if (iatom == 0) &
+       il = whichl(word2(1:1))
+       if (il == 0) &
           call ferror("acpfit","unknown ang. mom. label in FILE ETERM",faterr)
 
        ! the exponent
