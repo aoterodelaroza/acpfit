@@ -5,6 +5,7 @@ module calc
   public :: calc_stats
   public :: runfit_inf
   public :: runfit_scanatom
+  public :: runfit_manual
   private :: choose
   private :: comb
 
@@ -69,7 +70,7 @@ contains
   subroutine runfit_inf(outeval,outacp)
     use global, only: ncols, nfitw, nfit, global_printeval, x, yempty, global_printacp
     use types, only: stats
-    use tools_io, only: uout
+    use tools_io, only: uout, faterr, ferror, string
     
     character*(*), intent(in) :: outeval
     character*(*), intent(in) :: outacp
@@ -80,6 +81,9 @@ contains
 
     ! header
     write (uout,'("+ Generating the ACP that uses all available terms, ACP(Inf)")')
+
+    if (ncols > nfitw) &
+       call ferror("runfit_inf","Too many columns ("//string(ncols)//") for current data ("//string(nfitw)//")",faterr)
 
     ! all possible terms
     idx = 0
@@ -106,16 +110,17 @@ contains
   ! (maxcoef) constraints.
   subroutine runfit_scanatom(nuse,maxnorm,maxcoef,outeval,outacp)
     use global, only: ncols, nfitw, nfit, global_printeval, x, yempty, global_printacp, natoms,&
-       atom, maxlmax, lmax, nexp, w, ywtarget, xw, coef0
+       atom, maxlmax, lmax, nexp, w, ywtarget, xw, coef0, col, lname
     use types, only: stats
-    use tools_io, only: uout, string, ferror, faterr
+    use tools_io, only: uout, string, ferror, faterr, string, ioj_left
     
     integer, intent(in) :: nuse
     real*8, intent(in) :: maxnorm, maxcoef
     character*(*), intent(in) :: outeval
     character*(*), intent(in) :: outacp
 
-    integer :: i, j, k, ncyc, n1, n2, nanuse, nanz, n, nsame
+    character(len=:), allocatable :: str, aux, aux2
+    integer :: i, j, k, ncyc, n1, n2, nanuse, nanz, n, nsame, id
     real*8 :: coef(nfitw), y(nfitw), y0(nfit), wrms, minwrms, norm, minnorm
     real*8 :: acoef, minacoef
     type(stats) :: stat
@@ -126,13 +131,15 @@ contains
     ! header
     write (uout,'("+ Generating ACP using atom iterations, with ",A," terms per atom")') string(nuse)
     if (maxnorm < huge(1d0)) &
-       write (uout,'("  Maximum norm: ")') string(maxnorm,'f',12,6)
+       write (uout,'("  Maximum norm: ",A)') string(maxnorm,'f',12,6)
     if (maxcoef < huge(1d0)) &
-       write (uout,'("  Maximum abs(coef): ")') string(maxcoef,'f',12,6)
+       write (uout,'("  Maximum abs(coef): ",A)') string(maxcoef,'f',12,6)
     write (uout,*)
 
     ! some dimensions
     nanuse = natoms*nuse
+    if (nanuse > nfitw) &
+       call ferror("runfit_inf","Too many columns ("//string(ncols)//") for current data ("//string(nfitw)//")",faterr)
 
     ! prepare the sets of atomic indices
     allocate(iatidx(maxlmax*nexp,natoms),natidx(natoms))
@@ -169,7 +176,7 @@ contains
           minwrms = huge(1d0)
           minnorm = huge(1d0)
           minacoef = huge(1d0)
-
+          
           ! Run over all the combinations. To save memory and allow
           ! parallelization, use Buckles' algorithm.
           !$omp parallel do private(coef,y,wrms,norm,acoef,co) firstprivate(idx)
@@ -188,7 +195,7 @@ contains
 
              ! apply the discard criteria; save minimum wrms
              !$omp critical (save)
-             if (wrms < minwrms) then
+             if (wrms < minwrms .and. norm < maxnorm .and. acoef < maxcoef) then
                 idx0 = idx
                 minwrms = wrms
                 minnorm = norm
@@ -211,7 +218,19 @@ contains
 
           ! some output
           do j = 1, natoms
-             write (uout,'(2X,99(A,X))') (string(idx0(nuse*(j-1)+k),5),k=1,nuse)
+             str = ""
+             do k = 1, nuse
+                id = idx0(nuse*(j-1)+k)
+                if (id > 0) then
+                   aux =  string(id,4,ioj_left) // "(" // string(col(id)%atom) // &
+                      "," // string(lname(col(id)%l)) // "," // string(col(id)%n) // &
+                      "," // trim(string(col(id)%eexp,'f',10,2,ioj_left)) // ")"
+                   aux2 = str // "  " // string(aux,20,ioj_left)
+                   str = aux2
+                end if
+             end do
+             if (len_trim(str) > 0) &
+                write (uout,'(2X,A,2X)') str
           end do
           write (uout,'("  wrms    = ",A)') string(minwrms,'f',14,8)
           write (uout,'("  norm    = ",A)') string(minnorm,'f',14,8)
@@ -236,6 +255,15 @@ contains
     call global_printacp("final",nanuse,idx0,coef(1:nanuse),outacp)
 
   end subroutine runfit_scanatom
+
+  subroutine runfit_manual(outeval,outacp)
+    character*(*), intent(in) :: outeval
+    character*(*), intent(in) :: outacp
+
+    write (*,*) "bleh!"
+    stop 1
+
+  end subroutine runfit_manual
 
   ! Run least squares using ndim columns given by idx. Returns the
   ! coefficients in coef(1:ndim).
@@ -318,7 +346,7 @@ contains
   ! time arranged in lexographical order. Given an integer i, this
   ! routine finds Ci.
   ! B.P. Buckles and M. Lybanon, ACM TOMS 3 (1977) 180-182
-  SUBROUTINE COMB(N, P, L, C)                                       
+  pure subroutine comb(N, P, L, C)                                       
     ! THIS SUBROUTINE FINDS THE COMBINATION SET OF N THINGS
     ! TAKEN P AT A TIME FOR A GIVEN LEXICOGRAPHICAL INDEX.
     ! N - NUMBER OF THINGS IN THE SET
@@ -329,7 +357,10 @@ contains
     ! VARIABLES.  L MUST BE GREATER THAN OR EQUAL TO 1 AND LESS
     ! THAN OR EQUAL TO THE MAXIMUM LEXICOGRAPHICAL INDEX.
     ! P MUST BE LESS THAN OR EQUAL TO N AND GREATER THAN ZERO.
-    INTEGER N, P, L, C(P), K, R, P1, I
+    integer, intent(in) :: n, p, l
+    integer, intent(out) :: c(p)
+
+    integer :: K, R, P1, I
 
     ! SPECIAL CASE CODE IF P = 1
     IF(P.EQ.1)THEN
@@ -353,13 +384,17 @@ contains
        K = K - R
     end DO
     C(P) = C(P1) + L - K
-    RETURN
-  END SUBROUTINE COMB
 
-  INTEGER FUNCTION BINOM(M, N)
+  end subroutine comb
+
+  pure function binom(M, N)
     ! ACM ALGORITHM 160 TRANSLATED TO FORTRAN.  CALCULATES THE
     ! NUMBER OF COMBINATIONS OF M THINGS TAKEN N AT A TIME.
-    INTEGER M, N, P, I, N1, R
+    integer, intent(in) :: m, n
+    integer :: binom
+
+    INTEGER :: P, I, N1, R
+
     N1 = N
     P = M - N1
     IF (N1.GE.P) GO TO 10
@@ -372,7 +407,6 @@ contains
        R = (R*(N1+I))/I
     end DO
 30  BINOM = R
-    RETURN
   end FUNCTION BINOM
 
 end module calc

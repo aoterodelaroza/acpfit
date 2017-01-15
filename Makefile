@@ -1,18 +1,21 @@
-# ### ifort with mkl
-# FC = ifort
-# FCFLAGS = -g -CU -C -traceback -fpe0 -debug -openmp
-# # FCFLAGS = -O3 -openmp
-# LDFLAGS = -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -liomp5 -lpthread -openmp
+### ifort with mkl
+FC = ifort
+FCFLAGS = -g -CU -C -traceback -fpe0 -debug -openmp
+LDFLAGS = -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -liomp5 -lpthread -openmp
+#FCFLAGS = -g -CU -C -traceback -fpe0 -debug 
+#LDFLAGS = -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -liomp5 -lpthread 
+#FCFLAGS = -O3 -openmp
+#LDFLAGS = -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -liomp5 -lpthread -openmp
 
-### gfortran with static blas and lapack
-FC = gfortran-6
+# ### gfortran with static blas and lapack
+# FC = gfortran-6
+# # FCFLAGS = -O3 -ffree-line-length-none
 # FCFLAGS = -O3 -ffree-line-length-none
-FCFLAGS = -O3 -fopenmp -ffree-line-length-none
-# FCFLAGS = -g -fbounds-check -Wall -Wunused-parameter -ffpe-trap=invalid -fbacktrace -fdump-core -fopenmp -ffree-line-length-none
-#LIBS=liblapack.a libblas.a 
-LIBS=-llapack -lblas
-LDFLAGS = -fopenmp 
-#LDFLAGS =
+# # FCFLAGS = -g -fbounds-check -Wall -Wunused-parameter -ffpe-trap=invalid -fbacktrace -fdump-core -fopenmp -ffree-line-length-none
+# #LIBS=liblapack.a libblas.a 
+# LIBS=-llapack -lblas
+# LDFLAGS = 
+# #LDFLAGS =
 
 BINS=acpfit
 OBJS=files.o global.o types.o tools_io.o calc.o

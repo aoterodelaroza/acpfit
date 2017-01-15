@@ -1241,6 +1241,13 @@ contains
     write (uout,'("    for which the maximum absolute value of all coefficients is greater than mc.r. The iterations")')
     write (uout,'("    continue until none of the terms in any of the atoms change.")')
     write (uout,'("")')
+    write (uout,'("  RUN FIT")')
+    write (uout,'("    atom1.s l1.s n1.s exp1.s")')
+    write (uout,'("    atom2.s l2.s n2.s exp2.s")')
+    write (uout,'("    ...")')
+    write (uout,'("  END|ENDRUN")')
+    write (uout,'("    Fit the ACP that uses the terms indicated by the user.")')
+    write (uout,'("")')
 
   end subroutine help_me
 
