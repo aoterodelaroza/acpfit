@@ -19,7 +19,25 @@ set bdexrel 1622 340
 set dipole 1960 128
 set nci 1 1222
 set ene 2088 1310
-output empty bleh1.1
-output eval bleh2.1
-output acp bleh3.1
-run fit 2
+output empty blah1.1
+output eval blah2.1
+output acp blah3.1
+run fit
+F  p 2 0.26
+F  p 2 0.60
+O  l 2 1.00
+O  p 2 0.16
+Cl l 2 0.40
+Cl p 2 0.16
+N  l 2 0.80
+N  s 2 0.16
+S  l 2 0.14
+S  l 2 0.40
+C  l 2 0.08
+C  l 2 1.00
+P  l 2 0.08
+P  p 2 0.22
+H  s 2 0.60
+H  s 2 1.00
+endrun
+

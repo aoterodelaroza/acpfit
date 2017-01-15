@@ -93,14 +93,14 @@ contains
 
     ! run least squares
     call lsqr(ncols,idx,coef)
-    y = matmul(x(:,idx),coef)
+    y = matmul(x(:,idx),coef(1:ncols))
 
     ! print stats and evaluation
-    call calc_stats(y,stat,coef)
+    call calc_stats(y,stat,coef(1:ncols))
     call global_printeval("final",y,stat,outeval)
     
     ! print resulting acp
-    call global_printacp("final",ncols,idx,coef,outacp)
+    call global_printacp("final",ncols,idx,coef(1:ncols),outacp)
 
   end subroutine runfit_inf
 
@@ -257,11 +257,71 @@ contains
   end subroutine runfit_scanatom
 
   subroutine runfit_manual(outeval,outacp)
+    use global, only: natoms, ncols, col, lname, nfitw, x, nfit, global_printeval,&
+       global_printacp
+    use tools_io, only: uin, getline, lgetword, equal, isinteger, isreal, &
+       ferror, faterr, lower, string
+    use types, only: realloc, stats
     character*(*), intent(in) :: outeval
     character*(*), intent(in) :: outacp
 
-    write (*,*) "bleh!"
-    stop 1
+    integer :: n, ninp, lp, i
+    integer, allocatable :: idx(:)
+    character(len=:), allocatable :: word, line, lstr
+    logical :: ok
+    real*8 :: rinp, coef(nfitw), y(nfit)
+    type(stats) :: stat
+
+    ! initialize
+    allocate(idx(2*natoms))
+    n = 0
+
+    do while (getline(uin,line))
+       lp=1
+       word = lgetword(line,lp)
+       if (equal(word,"end") .or. equal(word,"endrun")) then
+          exit
+       else
+          lstr = lgetword(line,lp)
+          ok = isinteger(ninp,line,lp)
+          ok = ok .and. isreal(rinp,line,lp)
+          if (.not.ok) &
+             call ferror("runfit_manual","Invalid ACP term in manual RUN FIT: "//trim(adjustl(line)),faterr)
+          
+          ok = .false.
+          do i = 1, ncols
+             if (equal(lower(col(i)%atom),word) .and. &
+                equal(lstr,lower(lname(col(i)%l))) .and. col(i)%n == ninp .and.&
+                abs(col(i)%eexp - rinp) < 1d-10) then
+                n = n + 1
+                if (n > size(idx,1)) call realloc(idx,2*n)
+                idx(n) = i
+                ok = .true.
+                exit
+             end if
+          end do
+          if (.not.ok) &
+             call ferror("runfit_manual","ACP term not found: "//trim(adjustl(line)),faterr)
+       end if
+    end do
+    call realloc(idx,n)
+    
+    ! check that we don't have too many terms
+    if (n == 0) &
+       call ferror("runfit_manual","no ACP terms in manual RUN FIT",faterr)
+    if (n > nfitw) &
+       call ferror("runfit_manual","Too many columns ("//string(n)//") for current data ("//string(nfitw)//")",faterr)
+
+    ! run least squares
+    call lsqr(n,idx,coef)
+    y = matmul(x(:,idx),coef(1:n))
+
+    ! print stats and evaluation
+    call calc_stats(y,stat,coef(1:n))
+    call global_printeval("final",y,stat,outeval)
+    
+    ! print resulting acp
+    call global_printacp("final",n,idx,coef(1:n),outacp)
 
   end subroutine runfit_manual
 

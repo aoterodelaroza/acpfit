@@ -544,21 +544,19 @@ contains
              if (equal(word,"inf")) then
                 ! RUN FIT INF ...
                 ifit_n = -1
+             elseif (len_trim(word) < 1) then
+                imode = imode_fit_manual
+                ifit_n = 0
              else
                 lp = lp2
                 ok = isinteger(idum,line,lp)
                 if (ok) then
                    if (idum > 0) then
-                      ! RUN FIT N
                       ifit_n = idum
-                   else
-                      ! RUN FIT 0 (manual op.)
-                      imode = imode_fit_manual
-                      ifit_n = 0
-                   endif
-                else
-                   call ferror("acpfit","wrong RUN FIT syntax",faterr)
+                   end if
                 end if
+                if (ifit_n == 0) &
+                   call ferror("acpfit","wrong RUN FIT syntax",faterr)
                 ! RUN ... [MAXNORM norm.r] [MAXCOEF coef.r]
                 do while(.true.)
                    word = lgetword(line,lp)
