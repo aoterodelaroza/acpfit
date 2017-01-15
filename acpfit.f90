@@ -28,7 +28,7 @@ program acpfit
   logical :: ok
   real*8 :: rdum
   type(stats) :: statempty
-  character(len=:), allocatable :: outempty
+  character(len=:), allocatable :: outempty, outeval, outacp
 
   integer :: imode
   integer, parameter :: imode_fit = 1
@@ -38,6 +38,7 @@ program acpfit
   integer :: ifit_n 
   real*8 :: fit_maxnorm
   real*8 :: fit_maxcoef
+  real*8, allocatable :: ydum(:)
 
   ! energy terms files in manual input
   integer :: nefilesi ! number of files
@@ -66,6 +67,8 @@ program acpfit
   if (allocated(efilei)) deallocate(efilei)
   allocate(efilei(1))
   outempty = ""
+  outeval = ""
+  outacp = ""
   fit_maxnorm = -1d0
   fit_maxcoef = -1d0
   imode = imode_no
@@ -132,6 +135,11 @@ program acpfit
         end do
         call realloc(nval,nexp)
         call realloc(eexp,nexp)
+     elseif (equal(word,'coef0')) then
+        ! COEF0 coef0.r
+        ok = isreal(coef0,line,lp)
+        if (.not.ok) &
+           call ferror("acpfit","wrong COEF0 syntax",faterr)
      elseif (equal(word,'nfit')) then
         ! NFIT nfit.i
         ok = isinteger(nfit,line,lp)
@@ -189,6 +197,12 @@ program acpfit
         if (equal(word,'empty')) then
            ! OUTPUT EMPTY file.s
            outempty = trim(line(lp:))
+        elseif (equal(word,'eval')) then
+           ! OUTPUT EMPTY file.s
+           outeval = trim(line(lp:))
+        elseif (equal(word,'acp')) then
+           ! OUTPUT ACP file.s
+           outacp = trim(line(lp:))
         else
            call ferror("acpfit","unknown OUTPUT keyword: " // word,faterr)
         end if
@@ -275,14 +289,16 @@ program acpfit
   call readfiles()
 
   ! calculate the statistics for the empty
-  call calc_stats(yempty,0d0,0d0,statempty)
-  call global_printeval("empty",yempty,statempty,outempty)
+  allocate(ydum(nfit))
+  ydum = 0d0
+  call calc_stats(ydum,statempty)
+  call global_printeval("empty",ydum,statempty,outempty)
 
   ! run the calculation
   if (imode == imode_fit) then
      if (ifit_n < 0) then
         ! all terms in the ACP
-        call runfit_inf()
+        call runfit_inf(outeval,outacp)
      else
      end if
   elseif (imode == imode_fit_manual) then

@@ -7,26 +7,36 @@ module calc
 
 contains
   
-  subroutine calc_stats(y,norm,maxcoef,stat)
+  ! calculate the statistics for a given evaluation
+  subroutine calc_stats(y,stat,coef)
     use types, only: stats
     use global, only: nfit, maxnamelen, w, ydisp, yref, names, nset, ytarget, &
-       iset_ini, iset_step, iset_n
+       iset_ini, iset_step, iset_n, coef0
 
     real*8, intent(in) :: y(:) ! results of the fit (no dispersion)
-    real*8, intent(in) :: norm, maxcoef ! norm and maxcoef for this evaluation
     type(stats), intent(inout) :: stat ! statistics of the fit
+    real*8, intent(in), optional :: coef(:) ! coefficients
 
     integer :: i, j, id
     real*8 :: dy(nfit)
 
     ! write down some constants
-    stat%norm = norm
-    stat%maxcoef = maxcoef
+    if (present(coef)) then
+       stat%norm = sqrt(sum(coef**2)) * coef0
+       stat%maxcoef = maxval(abs(coef)) * coef0
+    else
+       stat%norm = 0d0
+       stat%maxcoef = 0d0
+    end if
     stat%nset = nset
 
     ! calculate the wrms
-    stat%wrms = sqrt(sum(w * (y-ytarget)**2) / sum(w))
-    
+    if (abs(sum(w)) < 1d-10) then
+       stat%wrms = -1d0
+    else
+       stat%wrms = sqrt(sum(w * (y-ytarget)**2) / sum(w))
+    end if
+
     ! allocate rms and mae
     if (allocated(stat%rms)) deallocate(stat%rms)
     if (allocated(stat%mae)) deallocate(stat%mae)
@@ -50,103 +60,61 @@ contains
 
   end subroutine calc_stats
 
-  subroutine runfit_inf()
-
-    write (*,*) "bleh!"
-    stop 1
-
-    ! integer :: i, j, k, l, n1, rank, lwork, info, ihere, nall
-    ! integer, allocatable :: icur(:)
-    ! real*8, allocatable :: xsub(:,:), xsubw(:,:), dy(:), dyw(:), coef(:), work(:)
-    ! integer, allocatable :: jpvt(:)
-    ! real*8 :: norm, wrms, rms, mae
+  ! Fit the ACP with all possible terms. Good for testing.
+  subroutine runfit_inf(outeval,outacp)
+    use global, only: ncols, nfitw, nfit, global_printeval, x, yempty, global_printacp
+    use types, only: stats
     
-    ! ! count terms in the least squares
-    ! allocate(icur(size(idx)))
-    ! n1 = count(idx /= 0)
-    ! icur(1:n1) = pack(idx,idx/=0)
+    character*(*), intent(in) :: outeval
+    character*(*), intent(in) :: outacp
 
-    ! ! work space for lapack
-    ! allocate(jpvt(n1))
-    ! jpvt = 0
-    ! lwork = n1 + 3 * n + 1
-    ! allocate(work(lwork))
+    integer :: idx(ncols), i
+    real*8 :: coef(nfitw), y(nfit)
+    type(stats) :: stat
 
-    ! ! allocate and populate the arrays
-    ! nall = size(x0,1)
-    ! allocate(xsubw(size(xw,1),n1),xsub(nall,n1),dy(nall),dyw(size(yw)),coef(size(yw)))
+    ! all possible terms
+    idx = 0
+    do i = 1, ncols
+       idx(i) = i
+    end do
 
-    ! ! least squares
-    ! if (n1 > 0) then
-    !    xsubw = xw(:,icur(1:n1))
-    !    coef = yw
-    !    call dgelsy(n,n1,1,xsubw,n,coef,n,jpvt,1d-10,rank,work,lwork,info)
-    !    norm = sqrt(sum(coef(1:n1)**2) * 1d-6)
-    ! else
-    !    coef = 0d0
-    !    norm = 0d0
-    ! endif
+    ! run least squares
+    call lsqr(ncols,idx,coef)
+    y = matmul(x(:,idx),coef)
+
+    ! print stats and evaluation
+    call calc_stats(y,stat,coef)
+    call global_printeval("final",y,stat,outeval)
     
-    ! ! calculate the wrms
-    ! xsubw(:,1:n1) = xw(:,icur(1:n1))
-    ! dyw = yw
-    ! call dgemv('n',n,n1,-1d0,xsubw,n,coef(1:n1),1,1d0,dyw,1)
-    ! if (abs(sum(w)) > 1d-10) then
-    !    wrms = sqrt(sum(dyw**2) / sum(w))
-    ! else
-    !    wrms = 0d0
-    ! endif
-
-    ! ! calculate the residues for the whole set
-    ! xsub(:,1:n1) = x0(:,icur(1:n1))
-    ! dy = y0
-    ! call dgemv('n',nall,n1,-1d0,xsub,nall,coef(1:n1),1,1d0,dy,1)
-
-    ! write (*,'("  Statistics of the results: ")')
-    ! write (*,'("    norm = ",F12.6)') norm
-    ! write (*,'("    wrms(all) = ",F14.8)') wrms
-    ! do i = 1, size(iset)
-    !    rms = sqrt(sum(dy(iset(i)%idx)**2) / size(iset(i)%idx))
-    !    mae = sum(abs(dy(iset(i)%idx))) / size(iset(i)%idx)
-    !    write (*,'(4X,A8," rms = ",F14.8," mae = ",F14.8)') &
-    !       iset(i)%name, rms, mae
-    ! end do
-    ! write (*,*)
-
-    ! if (doeval) then
-    !    write (*,'("  Evaluation: ")')
-    !    write (*,'("  | id | Name | w | yref | yempty | ycalc |")')
-    !    do i = 1, size(dy)
-    !       write (*,'("    | ",I4," | ",A," | ",F5.1," | ",3(F14.8," | "))') &
-    !          i, trim(name(i)), w(i), yref(i), yempty(i), yempty(i)+y0(i)-dy(i)
-    !    end do
-    !    write (*,*)
-    ! end if
-
-    ! if (dodcp) then
-    !    write (*,'("  DCP in Gaussian form: ")')
-    !    l = 0
-    !    do i = 1, natom
-    !       write (*,'(A,X,"0")') trim(atomlist(i))
-    !       write (*,'(A,X,"3 0")') trim(atomlist(i))
-    !       do j = 1, nchan
-    !          write (*,'(A)') trim(channame(j))
-    !          write (*,'(I2)') count((icur >= l+1) .and. (icur <= l+nterms))
-    !          do k = 1, nterms
-    !             l = l + 1
-    !             if (any(icur == l)) then
-    !                ihere = maxloc(icur,1,icur == l)
-    !                write (*,'("2 ",F14.10,X,F14.10)') explist(k), coef(ihere) * 0.001d0
-    !             end if
-    !          end do
-    !       end do
-    !    end do
-    !    write (*,*)
-    ! end if
-
-    ! deallocate(xsub,xsubw,dy,dyw,coef,work,jpvt,icur)
-
+    ! print resulting acp
+    call global_printacp("final",ncols,idx,coef,outacp)
 
   end subroutine runfit_inf
+
+  ! Run least squares using ndim columns given by idx. Returns the
+  ! coefficients in coef(1:ndim).
+  subroutine lsqr(ndim,idx,coef)
+    use global, only: natoms, ncols, nfitw, xwork, xw, ywtarget
+    integer, intent(in) :: ndim
+    integer, intent(in) :: idx(ndim)
+    real*8, intent(out) :: coef(nfitw)
+
+    ! work data for lapack
+    integer :: jpvt(natoms*ncols) 
+    real*8 :: work(natoms*ncols + 3 * nfitw + 1) 
+    integer :: lwork, rank, info
+
+    ! initialize lapack
+    jpvt = 0
+    lwork = natoms*ncols + 3 * nfitw + 1
+
+    ! build the work slice
+    xwork(:,1:ndim) = xw(:,idx)
+    coef = ywtarget
+
+    ! run the least squares 
+    call dgelsy(nfitw,ndim,1,xwork(:,1:ndim),nfitw,coef,nfitw,jpvt,1d-10,rank,work,lwork,info)
+
+  end subroutine lsqr
 
 end module calc

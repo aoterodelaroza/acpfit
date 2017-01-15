@@ -29,6 +29,7 @@ module global
   character*2, allocatable :: atom(:) !< atomic symbols
   integer, allocatable :: lmax(:) !< maximum angular momentum for each atom
   integer :: maxlmax !< maximum lmax
+  real*8 :: coef0 !< coefficients with which the ACP terms were evaluated
 
   ! list of exponents and n-values
   integer :: nexp !< number of exponents
@@ -37,6 +38,7 @@ module global
 
   ! fitting set, and subsets
   integer :: nfit !< number of systems in the fitting set
+  integer :: nfitw !< number of systems in the fitting set with non-zero wegiht
   integer :: nset !< number of subsets
   character*255, allocatable :: iset_label(:) !< labels for the subsets
   integer, allocatable :: iset_ini(:), iset_n(:), iset_step(:) !< initial, number, and step for the subsets
@@ -58,11 +60,19 @@ module global
   type(column), allocatable :: col(:)
 
   ! data for the fits
+  logical, allocatable :: wmask(:) !< mask of non-zero weights
   real*8, allocatable :: yempty(:), yref(:), ydisp(:), w(:) !< empty, ref, disp, and weight data
   real*8, allocatable :: x(:,:) !< matrix containing the BSIP term energies
+  real*8, allocatable :: xw(:,:) !< weighted x
   real*8, allocatable :: ytarget(:) !< target of the fit
+  real*8, allocatable :: ywtarget(:) !< weighted target y
   character*128, allocatable :: names(:) !< names of the systems in the fitting set
   integer :: maxnamelen !< maximum length of the names
+  real*8, allocatable :: xwork(:,:) !< slice of the xw used in the fit
+
+  ! working space for lapack
+  integer, allocatable :: jpvt(:) !< work array for lapack
+  real*8, allocatable :: work(:) !< work array for lapack
 
 contains
   
@@ -79,6 +89,7 @@ contains
     nsubfiles = 0
     nfit = 0
     nset = 0
+    coef0 = 1d-3
     if (allocated(atom)) deallocate(atom)
     if (allocated(lmax)) deallocate(lmax)
     if (allocated(nval)) deallocate(nval)
@@ -167,6 +178,7 @@ contains
           string(iset_step(i),3), string(iset_label(i))
     end do
     write (uout,'("Number of columns: ",A)') string(ncols)
+    write (uout,'("Coefficent ACP term evaluation: ",A)') string(coef0,'f',12,6)
     write (uout,'("Data path: ",A)') string(datapath)
     write (uout,'("Names file: ",A)') string(namesfile)
     write (uout,'("Weight file: ",A)') string(wfile)
@@ -248,9 +260,9 @@ contains
 
     if (present(stat)) then
        write (lu,'("# Statistics: ")')
-       write (lu,'("#   norm =    ",F12.6)') stat%norm
-       write (lu,'("#   maxcoef = ",F12.6)') stat%maxcoef
-       write (lu,'("#   wrms =    ",F14.8)') stat%wrms
+       write (lu,'("#   norm =    ",A)') string(stat%norm,'f',12,6,ioj_left)
+       write (lu,'("#   maxcoef = ",A)') string(stat%maxcoef,'f',12,6,ioj_left)
+       write (lu,'("#   wrms =    ",A)') string(stat%wrms,'f',14,8,ioj_left)
        do i = 1, nset
           write (lu,'("#",3X,A," rms = ",A," mae = ",A)') &
              string(iset_label(i),10,ioj_left), string(stat%rms(i),'f',14,8), &
@@ -262,11 +274,12 @@ contains
        if (size(y,1) /= nfit) &
           call ferror("global_printeval","inconsistent size of y",faterr)
 
-       write (lu,'("# Id                     Name                     weight        yscf                ytotal                yref                 diff")')
+       write (lu,'("# Id                     Name                     weight       yempty               yscf                 ytotal               yref                 diff")')
        do i = 1, nfit
           write (lu,'(99(A,X))') string(i,6,ioj_left), string(names(i),maxnamelen,ioj_center), &
-             string(w(i),'f',5,1,ioj_right), string(y(i),'f',20,10,8), string(y(i)+ydisp(i),'f',20,10,8), &
-             string(yref(i),'f',20,10,8), string(y(i)+ydisp(i)-yref(i),'f',20,10,8)
+             string(w(i),'f',5,1,ioj_right), string(yempty(i),'f',20,10,8), &
+             string(yempty(i)+y(i),'f',20,10,8), string(yempty(i)+y(i)+ydisp(i),'f',20,10,8), &
+             string(yref(i),'f',20,10,8), string(yempty(i)+y(i)+ydisp(i)-yref(i),'f',20,10,8)
        end do
        write (lu,*)
     end if
@@ -274,5 +287,67 @@ contains
     if (doclose) call fclose(lu)
 
   end subroutine global_printeval
+
+  !> Print an ACP in Gaussian form
+  subroutine global_printacp(label,ndim,idx,coef,ofile)
+    use tools_io, only: uout, string, fopen_write, fclose
+    character*(*), intent(in) :: label !< label 
+    integer, intent(in) :: ndim !< number of terms (total)
+    integer, intent(in) :: idx(ndim) !< columns for the terms
+    real*8, intent(in) :: coef(ndim) !< coefficients
+    character*(*), intent(in), optional :: ofile !< output file
+
+    integer :: catom, cang, i, id, j, n, lu
+    logical :: doclose
+
+    ! open the output lu
+    lu = uout
+    doclose = .false.
+    if (present(ofile)) then
+       if (len_trim(ofile) > 0) then
+          lu = fopen_write(ofile)
+          doclose = .true.
+          write (uout,'("+ ACP (",A,") written to file: ",A/)') string(label), string(ofile)
+       end if
+    end if
+
+    if (lu == uout) then
+       write (lu,'("# ACP (",A,")")') string(label)
+    end if
+
+    catom = -1
+    cang = -1
+    do i = 1, ndim
+       id = idx(i)
+       if (col(id)%iatom /= catom) then
+          catom = col(id)%iatom
+          cang = -1
+          write (lu,'(A," 0")') string(atom(catom))
+          write (lu,'(A,X,A," 0")') string(atom(catom)), string(lmax(catom)-1)
+       end if
+       if (col(id)%l /= cang) then
+          cang = col(id)%l
+          write (lu,'(A)') lname(cang)
+          n = 1
+          do j = i+1, ndim
+             if (col(idx(j))%iatom == catom .and. col(idx(j))%l == cang) then
+                n = n + 1
+             else
+                exit
+             end if
+          end do
+          write (lu,'(A)') string(n)
+       end if
+       write (lu,'(3(A,X))') string(col(id)%n), string(col(id)%eexp,'f',20,12),&
+          string(coef(i)*coef0,'f',20,12,6)
+    end do
+
+    if (doclose) then
+       call fclose(lu)
+    else
+       write (uout,*)
+    end if
+
+  end subroutine global_printacp
 
 end module global

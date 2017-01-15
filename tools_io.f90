@@ -1183,6 +1183,9 @@ contains
     write (uout,'("")')
     write (uout,'("Optional keywords:")')
     write (uout,'("")')
+    write (uout,'("  COEF0 coef0.r ")')
+    write (uout,'("    Constant coefficient with which the ACP terms were evaluated (default: 0.001).")')
+    write (uout,'("")')
     write (uout,'("  FILE EMPTY emptyfile.s ")')
     write (uout,'("    Name of the empty file (default: empty.dat).")')
     write (uout,'("")')
@@ -1215,6 +1218,12 @@ contains
     write (uout,'("")')
     write (uout,'("  OUTPUT EMPTY file.s")')
     write (uout,'("    Write the statistics of the empty to file.s instead of the standard output.")')
+    write (uout,'("")')
+    write (uout,'("  OUTPUT EVAL file.s")')
+    write (uout,'("    Write the statistics of the final ACP to file.s instead of the standard output.")')
+    write (uout,'("")')
+    write (uout,'("  OUTPUT ACP file.s")')
+    write (uout,'("    Write the final ACP in Gaussian form to file.s instead of the standard output.")')
     write (uout,'("")')
 
   end subroutine help_me

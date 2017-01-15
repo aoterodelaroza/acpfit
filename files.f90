@@ -103,32 +103,36 @@ contains
   subroutine readfiles()
     use global, only: datapath, emptyfile, yempty, yref, reffile, w, wfile, &
        namesfile, names, nfit, ydisp, nsubfiles, subfile, natoms, lmax, nexp, &
-       x, efile, ncols, ytarget, maxnamelen
+       x, efile, ncols, ytarget, maxnamelen, wmask, nfitw, xw, xwork, ywtarget
     use tools_io, only: ferror, faterr, fopen_read, getline, fclose, string
 
     character(len=:), allocatable :: file, line
     logical :: ok
-    integer :: lu, i, j, k, n
+    integer :: lu, i, j, k, n, istat
     real*8 :: xaux(nfit)
 
     ! w
     if (allocated(w)) deallocate(w)
-    allocate(w(nfit))
+    allocate(w(nfit),stat=istat)
+    call checkstat(istat,"w")
     call gety(trim(datapath) // trim(wfile),"weights",nfit,w)
 
     ! empty
     if (allocated(yempty)) deallocate(yempty)
-    allocate(yempty(nfit))
+    allocate(yempty(nfit),stat=istat)
+    call checkstat(istat,"empty")
     call gety(trim(datapath) // trim(emptyfile),"empty",nfit,yempty)
 
     ! ref
     if (allocated(yref)) deallocate(yref)
-    allocate(yref(nfit))
+    allocate(yref(nfit),stat=istat)
+    call checkstat(istat,"ref")
     call gety(trim(datapath) // trim(reffile),"reference",nfit,yref)
 
     ! names
     if (allocated(names)) deallocate(names)
-    allocate(names(nfit))
+    allocate(names(nfit),stat=istat)
+    call checkstat(istat,"names")
     file = trim(datapath) // trim(namesfile)
     inquire(file=file,exist=ok)
     if (.not.ok) &
@@ -144,7 +148,8 @@ contains
 
     ! disp files
     if (allocated(ydisp)) deallocate(ydisp)
-    allocate(ydisp(nfit))
+    allocate(ydisp(nfit),stat=istat)
+    call checkstat(istat,"ydisp")
     ydisp = 0d0
     do i = 1, nsubfiles
        call gety(trim(datapath) // trim(subfile(i)),"subfile-"//string(i),nfit,xaux)
@@ -153,12 +158,14 @@ contains
 
     ! make the target
     if (allocated(ytarget)) deallocate(ytarget)
-    allocate(ytarget(nfit))
-    ytarget = yref - ydisp
+    allocate(ytarget(nfit),stat=istat)
+    call checkstat(istat,"ytarget")
+    ytarget = yref - ydisp - yempty
 
     ! energy terms 
     if (allocated(x)) deallocate(x)
-    allocate(x(nfit,ncols))
+    allocate(x(nfit,ncols),stat=istat)
+    call checkstat(istat,"x")
     n = 0
     do i = 1, natoms
        do j = 1, lmax(i)
@@ -172,6 +179,47 @@ contains
        end do
     end do
     
+    ! build the mask of non-zero weights
+    if (allocated(wmask)) deallocate(wmask)
+    allocate(wmask(nfit),stat=istat)
+    call checkstat(istat,"wmask")
+    wmask = .false.
+    do i = 1, nfit
+       if (abs(w(i)) > 1d-10) then
+          wmask(i) = .true.
+       end if
+    end do
+    nfitw = count(wmask)
+
+    ! build the weighted variables
+    if (allocated(xw)) deallocate(xw)
+    if (allocated(xwork)) deallocate(xwork)
+    if (allocated(ywtarget)) deallocate(ywtarget)
+    allocate(xw(nfitw,ncols),stat=istat)
+    call checkstat(istat,"xw")
+    allocate(xwork(nfitw,ncols),stat=istat)
+    call checkstat(istat,"xwork")
+    allocate(ywtarget(nfitw),stat=istat)
+    call checkstat(istat,"ywtarget")
+    n = 0
+    do i = 1, nfit
+       if (abs(w(i)) > 1d-10) then
+          n = n + 1
+          ywtarget(n) = ytarget(i) * sqrt(w(i))
+          xw(n,:) = x(i,:) * sqrt(w(i))
+       endif
+    end do
+    xwork = 0d0
+
+  contains
+    subroutine checkstat(istat,label)
+      integer, intent(in) :: istat
+      character*(*), intent(in) :: label
+
+      if (istat /= 0) &
+         call ferror("readfiles","could not allocate memory for "//trim(label),faterr)
+
+    end subroutine checkstat
   end subroutine readfiles
 
   ! Read n real numbers from the file (identified by label) and return
