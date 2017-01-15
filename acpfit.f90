@@ -15,11 +15,13 @@
 ! along with this program.  If not, see
 ! <http://www.gnu.org/licenses/>.
 program acpfit
-  use calc, only: calc_stats, runfit_inf
+  use calc, only: calc_stats, runfit_inf, runfit_scanatom
   use files, only: makefilenames, readfiles
   use global
   use types, only: realloc, stats
-  use tools_io
+  use tools_io, only: equal, lgetword, getline, uin, uout, isreal, isinteger, getword, &
+     string, nwarns, ncomms, ferror, faterr, ioinit, stdargs, help_me, tictac, &
+     start_clock, print_clock
   implicit none
 
   character(len=:), allocatable :: optv, subline, word, word2, line, aux
@@ -69,8 +71,8 @@ program acpfit
   outempty = ""
   outeval = ""
   outacp = ""
-  fit_maxnorm = -1d0
-  fit_maxcoef = -1d0
+  fit_maxnorm = huge(1d0)
+  fit_maxcoef = huge(1d0)
   imode = imode_no
 
   ! parse the input
@@ -222,31 +224,35 @@ program acpfit
               lp = lp2
               ok = isinteger(idum,line,lp)
               if (ok) then
-                 ! RUN FIT N
-                 ifit_n = idum
+                 if (idum > 0) then
+                    ! RUN FIT N
+                    ifit_n = idum
+                 else
+                    ! RUN FIT 0 (manual op.)
+                    imode = imode_fit_manual
+                    ifit_n = 0
+                 endif
               else
-                 ! RUN FIT (manual op.)
-                 imode = imode_fit_manual
+                 call ferror("acpfit","wrong RUN FIT syntax",faterr)
               end if
+              ! RUN ... [MAXNORM norm.r] [MAXCOEF coef.r]
+              do while(.true.)
+                 word = lgetword(line,lp)
+                 if (equal(word,"maxnorm")) then
+                    ok = isreal(fit_maxnorm,line,lp)
+                    if (.not.ok) &
+                       call ferror("acpfit","wrong RUN FIT MAXNORM syntax",faterr)
+                 elseif (equal(word,"maxcoef")) then
+                    ok = isreal(fit_maxcoef,line,lp)
+                    if (.not.ok) &
+                       call ferror("acpfit","wrong RUN FIT MAXCOEF syntax",faterr)
+                 elseif (len_trim(word) > 0) then
+                    call ferror("acpfit","unknown RUN FIT keyword: " // word,faterr)
+                 else
+                    exit
+                 end if
+              end do
            end if
-
-           ! RUN ... [MAXNORM norm.r] [MAXCOEF coef.r]
-           do while(.true.)
-              word = lgetword(line,lp)
-              if (equal(word,"maxnorm")) then
-                 ok = isreal(fit_maxnorm,line,lp)
-                 if (.not.ok) &
-                    call ferror("acpfit","wrong RUN FIT MAXNORM syntax",faterr)
-              elseif (equal(word,"maxcoef")) then
-                 ok = isreal(fit_maxcoef,line,lp)
-                 if (.not.ok) &
-                    call ferror("acpfit","wrong RUN FIT MAXCOEF syntax",faterr)
-              elseif (len_trim(word) > 0) then
-                 call ferror("acpfit","unknown RUN FIT keyword: " // word,faterr)
-              else
-                 exit
-              end if
-           end do
         elseif (equal(word,'eval')) then
            ! RUN EVAL ...
            imode = imode_eval
@@ -299,7 +305,8 @@ program acpfit
      if (ifit_n < 0) then
         ! all terms in the ACP
         call runfit_inf(outeval,outacp)
-     else
+     elseif (ifit_n > 0) then
+        call runfit_scanatom(ifit_n,fit_maxnorm,fit_maxcoef,outeval,outacp)
      end if
   elseif (imode == imode_fit_manual) then
   elseif (imode == imode_eval) then

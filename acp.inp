@@ -18,7 +18,7 @@ set bdexrel 1622 340
 set dipole 1960 128
 set nci 1 1222
 set ene 2088 1310
-output empty bleh1
-output eval bleh2
-output acp bleh3
-run fit inf
+output empty bleh1.2
+output eval bleh2.2
+output acp bleh3.2
+run fit 3

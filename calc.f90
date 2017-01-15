@@ -4,6 +4,11 @@ module calc
   private
   public :: calc_stats
   public :: runfit_inf
+  public :: runfit_scanatom
+  private :: choose
+  private :: comb
+
+  integer, parameter :: ilong = selected_int_kind(32)
 
 contains
   
@@ -64,6 +69,7 @@ contains
   subroutine runfit_inf(outeval,outacp)
     use global, only: ncols, nfitw, nfit, global_printeval, x, yempty, global_printacp
     use types, only: stats
+    use tools_io, only: uout
     
     character*(*), intent(in) :: outeval
     character*(*), intent(in) :: outacp
@@ -71,6 +77,9 @@ contains
     integer :: idx(ncols), i
     real*8 :: coef(nfitw), y(nfit)
     type(stats) :: stat
+
+    ! header
+    write (uout,'("+ Generating the ACP that uses all available terms, ACP(Inf)")')
 
     ! all possible terms
     idx = 0
@@ -91,17 +100,155 @@ contains
 
   end subroutine runfit_inf
 
+  ! Fit an ACP using an iterative procedure over the atoms. For each
+  ! atom, select the combination of nuse terms that minimizes the error
+  ! subject to the maximum norm (maxnorm) and/or maximum absolute coefficient
+  ! (maxcoef) constraints.
+  subroutine runfit_scanatom(nuse,maxnorm,maxcoef,outeval,outacp)
+    use global, only: ncols, nfitw, nfit, global_printeval, x, yempty, global_printacp, natoms,&
+       atom, maxlmax, lmax, nexp, w, ywtarget, xw, coef0
+    use types, only: stats
+    use tools_io, only: uout, string, ferror, faterr
+    
+    integer, intent(in) :: nuse
+    real*8, intent(in) :: maxnorm, maxcoef
+    character*(*), intent(in) :: outeval
+    character*(*), intent(in) :: outacp
+
+    integer :: i, j, k, ncyc, n1, n2, nanuse, nanz, n, nsame
+    real*8 :: coef(nfitw), y(nfitw), y0(nfit), wrms, minwrms, norm, minnorm
+    real*8 :: acoef, minacoef
+    type(stats) :: stat
+    integer, allocatable :: iatidx(:,:), natidx(:)
+    integer :: co(nuse), idx(natoms*nuse), idx0(natoms*nuse)
+    integer :: idxnz(natoms*nuse), idxsave(nuse)
+
+    ! header
+    write (uout,'("+ Generating ACP using atom iterations, with ",A," terms per atom")') string(nuse)
+    if (maxnorm < huge(1d0)) &
+       write (uout,'("  Maximum norm: ")') string(maxnorm,'f',12,6)
+    if (maxcoef < huge(1d0)) &
+       write (uout,'("  Maximum abs(coef): ")') string(maxcoef,'f',12,6)
+    write (uout,*)
+
+    ! some dimensions
+    nanuse = natoms*nuse
+
+    ! prepare the sets of atomic indices
+    allocate(iatidx(maxlmax*nexp,natoms),natidx(natoms))
+    natidx = 0
+    iatidx = 0
+    n1 = 0
+    do i = 1, natoms
+       n2 = 0
+       do j = 1, lmax(i)
+          do k = 1, nexp
+             n1 = n1 + 1
+             n2 = n2 + 1
+             iatidx(n2,i) = n1
+             natidx(i) = natidx(i) + 1
+          end do
+       end do
+    end do
+
+    ! run the main loop (over cycles)
+    ncyc = 0
+    idx0 = 0
+    nanz = 0
+    nsame = 0
+    main: do while(.true.)
+       ncyc = ncyc + 1
+       write (uout,'("# Cycle ",A)') string(ncyc)
+
+       ! run the loop over atoms
+       do i = 1, natoms
+          write (uout,'("# Atom ",A," (",A,")")') string(i), string(atom(i))
+          idx = idx0
+          idxsave = idx0(nuse*(i-1)+1:nuse*i)
+          nanz = min(nanz + nuse,nanuse)
+          minwrms = huge(1d0)
+          minnorm = huge(1d0)
+          minacoef = huge(1d0)
+
+          ! Run over all the combinations. To save memory and allow
+          ! parallelization, use Buckles' algorithm.
+          !$omp parallel do private(coef,y,wrms,norm,acoef,co) firstprivate(idx)
+          do j = 1, binom(natidx(i),nuse)
+             ! get the indices for this combination
+             call comb(natidx(i),nuse,j,co)
+
+             ! put them together with the rest of the atoms
+             idx(nuse*(i-1)+1:nuse*i) = iatidx(co,i)
+             
+             ! run least squares and calculate wrms
+             call lsqr(nanz,idx(1:nanz),coef,y)
+             wrms = sqrt(sum((y-ywtarget)**2) / sum(w))
+             norm = sqrt(sum(coef(1:nanz)**2)) * coef0
+             acoef = maxval(abs(coef(1:nanz))) * coef0
+
+             ! apply the discard criteria; save minimum wrms
+             !$omp critical (save)
+             if (wrms < minwrms) then
+                idx0 = idx
+                minwrms = wrms
+                minnorm = norm
+                minacoef = acoef
+             end if
+             !$omp end critical (save)
+          end do
+          !$omp end parallel do
+
+          ! check we had at least one combination
+          if (minwrms == huge(1d0)) &
+             call ferror("runfit_scanatom","Could not find any combination matching the input criteria",faterr)
+
+          ! increase nsame if the new indices are the same as the old ones
+          if (all(idxsave == idx0(nuse*(i-1)+1:nuse*i))) then
+             nsame = nsame + 1
+          else
+             nsame = 1
+          end if
+
+          ! some output
+          do j = 1, natoms
+             write (uout,'(2X,99(A,X))') (string(idx0(nuse*(j-1)+k),5),k=1,nuse)
+          end do
+          write (uout,'("  wrms    = ",A)') string(minwrms,'f',14,8)
+          write (uout,'("  norm    = ",A)') string(minnorm,'f',14,8)
+          write (uout,'("  maxcoef = ",A)') string(minacoef,'f',14,8)
+          write (uout,'("  nsame   = ",A)') string(nsame)
+
+          ! exit if we're done
+          if (nsame == natoms) exit main
+       end do
+    end do main
+    write (uout,*)
+
+    ! final results
+    call lsqr(nanuse,idx0,coef)
+    y0 = matmul(x(:,idx0),coef(1:nanuse))
+
+    ! print stats and evaluation
+    call calc_stats(y0,stat,coef(1:nanuse))
+    call global_printeval("final",y0,stat,outeval)
+    
+    ! print resulting acp
+    call global_printacp("final",nanuse,idx0,coef(1:nanuse),outacp)
+
+  end subroutine runfit_scanatom
+
   ! Run least squares using ndim columns given by idx. Returns the
   ! coefficients in coef(1:ndim).
-  subroutine lsqr(ndim,idx,coef)
-    use global, only: natoms, ncols, nfitw, xwork, xw, ywtarget
+  subroutine lsqr(ndim,idx,coef,yout)
+    use global, only: natoms, ncols, nfitw, xw, ywtarget
     integer, intent(in) :: ndim
     integer, intent(in) :: idx(ndim)
     real*8, intent(out) :: coef(nfitw)
+    real*8, intent(out), optional :: yout(nfitw)
 
     ! work data for lapack
     integer :: jpvt(natoms*ncols) 
-    real*8 :: work(natoms*ncols + 3 * nfitw + 1) 
+    real*8 :: work(natoms*ncols + 3 * nfitw + 1), xwork(nfitw,ndim)
     integer :: lwork, rank, info
 
     ! initialize lapack
@@ -109,12 +256,123 @@ contains
     lwork = natoms*ncols + 3 * nfitw + 1
 
     ! build the work slice
-    xwork(:,1:ndim) = xw(:,idx)
+    ! xwork(:,1:ndim) = xw(:,idx)
+    xwork = xw(:,idx)
     coef = ywtarget
 
     ! run the least squares 
-    call dgelsy(nfitw,ndim,1,xwork(:,1:ndim),nfitw,coef,nfitw,jpvt,1d-10,rank,work,lwork,info)
+    call dgelsy(nfitw,ndim,1,xwork,nfitw,coef,nfitw,jpvt,1d-10,rank,work,lwork,info)
+    if (present(yout)) then
+       xwork = xw(:,idx)
+       yout = matmul(xwork(:,1:ndim),coef(1:ndim))
+    end if
 
   end subroutine lsqr
+
+  !> Calculate n choose k using the multiplicative formula.
+  function choose(n,k)
+    integer*8 :: choose
+    integer, intent(in) :: n, k
+ 
+    integer, parameter :: qp = selected_real_kind(32)
+    integer :: i, s
+    real(kind=qp) :: x
+ 
+    if (k > n .or. k < 0) then
+       choose = 0
+       return
+    end if
+
+    s = min(k,n-k)
+    x = 1.
+    do i = 1, s
+       x = (x * (n + 1 - i)) / i
+    end do
+    choose = nint(x,8)
+
+  end function choose
+  
+  !> Given a combination of k in n elements (idx), calculate the next
+  !> combination in the lexicographical order.
+  subroutine nextcomb(idx,n,k)
+    integer, intent(in) :: n, k
+    integer, intent(inout) :: idx(k)
+
+    integer :: i, j
+    
+    do i = k, 1, -1
+       if (idx(i) < n-k+i)  then
+          idx(i) = idx(i) + 1
+          do j = i+1, k
+             idx(j) = idx(j-1)+1
+          end do
+          return
+       end if
+    end do
+
+  end subroutine nextcomb
+
+  ! From TOMS/515
+  ! Generates a vector from a lexicographical index That is, let C1,
+  ! C2, ... Cm be the set of combinations of n items taken p at a
+  ! time arranged in lexographical order. Given an integer i, this
+  ! routine finds Ci.
+  ! B.P. Buckles and M. Lybanon, ACM TOMS 3 (1977) 180-182
+  SUBROUTINE COMB(N, P, L, C)                                       
+    ! THIS SUBROUTINE FINDS THE COMBINATION SET OF N THINGS
+    ! TAKEN P AT A TIME FOR A GIVEN LEXICOGRAPHICAL INDEX.
+    ! N - NUMBER OF THINGS IN THE SET
+    ! P - NUMBER OF THINGS IN EACH COMBINATION
+    ! L - LEXICOGRAPHICAL INDEX OF COMBINATION SOUGHT
+    ! C - OUTPUT ARRAY CONTAINING THE COMBINATION SET
+    ! THE FOLLOWING RELATIONSHIPS MUST EXIST AMONG THE INPUT
+    ! VARIABLES.  L MUST BE GREATER THAN OR EQUAL TO 1 AND LESS
+    ! THAN OR EQUAL TO THE MAXIMUM LEXICOGRAPHICAL INDEX.
+    ! P MUST BE LESS THAN OR EQUAL TO N AND GREATER THAN ZERO.
+    INTEGER N, P, L, C(P), K, R, P1, I
+
+    ! SPECIAL CASE CODE IF P = 1
+    IF(P.EQ.1)THEN
+       C(1) = L
+       RETURN
+    ENDIF
+
+    ! INITIALIZE LOWER BOUND INDEX AT ZERO
+    K = 0
+    ! LOOP TO SELECT ELEMENTS IN ASCENDING ORDER
+    P1 = P - 1
+    C(1) = 0
+    DO I=1,P1
+       ! SET LOWER BOUND ELEMENT NUMBER FOR NEXT ELEMENT VALUE
+       IF (I.NE.1) C(I) = C(I-1)
+       ! LOOP TO CHECK VALIDITY OF EACH ELEMENT VALUE
+10     C(I) = C(I) + 1
+       R = BINOM(N-C(I),P-I)
+       K = K + R
+       IF (K.LT.L) GO TO 10
+       K = K - R
+    end DO
+    C(P) = C(P1) + L - K
+    RETURN
+  END SUBROUTINE COMB
+
+  INTEGER FUNCTION BINOM(M, N)
+    ! ACM ALGORITHM 160 TRANSLATED TO FORTRAN.  CALCULATES THE
+    ! NUMBER OF COMBINATIONS OF M THINGS TAKEN N AT A TIME.
+    INTEGER M, N, P, I, N1, R
+    N1 = N
+    P = M - N1
+    IF (N1.GE.P) GO TO 10
+    P = N1
+    N1 = M - P
+10  R = N1 + 1
+    IF (P.EQ.0) R = 1
+    IF (P.LT.2) GO TO 30
+    DO I=2,P
+       R = (R*(N1+I))/I
+    end DO
+30  BINOM = R
+    RETURN
+  end FUNCTION BINOM
 
 end module calc

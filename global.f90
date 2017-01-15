@@ -68,7 +68,6 @@ module global
   real*8, allocatable :: ywtarget(:) !< weighted target y
   character*128, allocatable :: names(:) !< names of the systems in the fitting set
   integer :: maxnamelen !< maximum length of the names
-  real*8, allocatable :: xwork(:,:) !< slice of the xw used in the fit
 
   ! working space for lapack
   integer, allocatable :: jpvt(:) !< work array for lapack
@@ -316,16 +315,20 @@ contains
     end if
 
     catom = -1
-    cang = -1
+    cang = 0
     do i = 1, ndim
        id = idx(i)
        if (col(id)%iatom /= catom) then
           catom = col(id)%iatom
-          cang = -1
+          cang = 0
           write (lu,'(A," 0")') string(atom(catom))
           write (lu,'(A,X,A," 0")') string(atom(catom)), string(lmax(catom)-1)
        end if
        if (col(id)%l /= cang) then
+          do j = cang+1, col(id)%l-1
+             write (lu,'(A)') lname(j)
+             write (lu,'("0")') 
+          end do
           cang = col(id)%l
           write (lu,'(A)') lname(cang)
           n = 1

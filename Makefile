@@ -1,15 +1,18 @@
-### ifort with mkl
-FC = ifort
-FCFLAGS = -g -CU -C -traceback -fpe0 -debug -openmp
-# FCFLAGS = -O3 -openmp
-LDFLAGS = -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -liomp5 -lpthread -openmp
+# ### ifort with mkl
+# FC = ifort
+# FCFLAGS = -g -CU -C -traceback -fpe0 -debug -openmp
+# # FCFLAGS = -O3 -openmp
+# LDFLAGS = -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -liomp5 -lpthread -openmp
 
-# ### gfortran with static blas and lapack
-# FC = gfortran-6
-# # FCFLAGS = -O3 -fopenmp
-# FCFLAGS = -g -fbounds-check -Wall -Wunused-parameter -ffpe-trap=invalid -fbacktrace -fdump-core -fopenmp
-# LIBS=liblapack.a libblas.a 
-# LDFLAGS = -fopenmp 
+### gfortran with static blas and lapack
+FC = gfortran-6
+# FCFLAGS = -O3 -ffree-line-length-none
+FCFLAGS = -O3 -fopenmp -ffree-line-length-none
+# FCFLAGS = -g -fbounds-check -Wall -Wunused-parameter -ffpe-trap=invalid -fbacktrace -fdump-core -fopenmp -ffree-line-length-none
+#LIBS=liblapack.a libblas.a 
+LIBS=-llapack -lblas
+LDFLAGS = -fopenmp 
+#LDFLAGS =
 
 BINS=acpfit
 OBJS=files.o global.o types.o tools_io.o calc.o
@@ -41,5 +44,5 @@ acpfit: $(OBJS) acpfit.o
 acpfit.o : calc.mod
 acpfit.o : files.mod
 files.o calc.o acpfit.o : global.mod
-types.o tools.o global.o files.o calc.o acpfit.o : tools_io.mod
-global.o acpfit.o : types.mod
+types.o tools.o global.o files.o acpfit.o : tools_io.mod
+global.o calc.o acpfit.o : types.mod

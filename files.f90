@@ -103,7 +103,7 @@ contains
   subroutine readfiles()
     use global, only: datapath, emptyfile, yempty, yref, reffile, w, wfile, &
        namesfile, names, nfit, ydisp, nsubfiles, subfile, natoms, lmax, nexp, &
-       x, efile, ncols, ytarget, maxnamelen, wmask, nfitw, xw, xwork, ywtarget
+       x, efile, ncols, ytarget, maxnamelen, wmask, nfitw, xw, ywtarget
     use tools_io, only: ferror, faterr, fopen_read, getline, fclose, string
 
     character(len=:), allocatable :: file, line
@@ -193,12 +193,9 @@ contains
 
     ! build the weighted variables
     if (allocated(xw)) deallocate(xw)
-    if (allocated(xwork)) deallocate(xwork)
     if (allocated(ywtarget)) deallocate(ywtarget)
     allocate(xw(nfitw,ncols),stat=istat)
     call checkstat(istat,"xw")
-    allocate(xwork(nfitw,ncols),stat=istat)
-    call checkstat(istat,"xwork")
     allocate(ywtarget(nfitw),stat=istat)
     call checkstat(istat,"ywtarget")
     n = 0
@@ -209,7 +206,6 @@ contains
           xw(n,:) = x(i,:) * sqrt(w(i))
        endif
     end do
-    xwork = 0d0
 
   contains
     subroutine checkstat(istat,label)
