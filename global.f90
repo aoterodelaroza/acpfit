@@ -93,7 +93,8 @@ module global
   integer, parameter :: imode_fit_manual = 2
   integer, parameter :: imode_eval = 3
   integer, parameter :: imode_eval_file = 4
-  integer, parameter :: imode_no = 5
+  integer, parameter :: imode_test = 5
+  integer, parameter :: imode_no = 6
 
 contains
   
@@ -596,6 +597,8 @@ contains
                 imode = imode_eval_file
                 inacp = word
              endif
+          elseif (equal(word,'test')) then
+             imode = imode_test
           elseif (len_trim(word) > 0) then
              call ferror("acpfit","unknown RUN keyword: " // word,faterr)
           else

@@ -8,6 +8,7 @@ module calc
   public :: runfit_manual
   public :: runeval_input
   public :: runeval_file
+  public :: runtest
   private :: choose
   private :: comb
 
@@ -500,6 +501,55 @@ contains
     call global_printeval("final",y,stat,outeval)
     
   end subroutine runeval_file
+
+  ! Write a tetsting ACP that uses all terms and has coefficients that roughtly
+  ! give the same average contribution to the wrms over the whole set.
+  subroutine runtest(outeval,outacp)
+    use global, only: ncols, nfitw, global_printeval, global_printacp, w, yempty, &
+       yref, x, nfit
+    use types, only: stats
+    use tools_io, only: uout, faterr, ferror, string
+    
+    character*(*), intent(in) :: outeval
+    character*(*), intent(in) :: outacp
+
+    integer :: idx(ncols), i
+    real*8 :: coef(ncols), wmae0, y(nfit)
+    type(stats) :: stat
+
+    ! header
+    write (uout,'("+ Generating testing ACP with all available terms")')
+
+    if (ncols > nfitw) &
+       call ferror("runtest","Too many columns ("//string(ncols)//") for current data ("//string(nfitw)//")",faterr)
+
+    ! all possible terms
+    idx = 0
+    do i = 1, ncols
+       idx(i) = i
+    end do
+
+    ! empty/ref wmae
+    wmae0 = sum(w * abs(yempty-yref)) / sum(w)
+    write (uout,'("  wmae(empty/ref) = ",A/)') string(wmae0,'f',12,6)
+    wmae0 = wmae0 / ncols * 10d0
+
+    ! find the coefficients
+    do i = 1, ncols
+       coef(i) = wmae0 / (sum(w * abs(x(:,i))) / sum(w))
+    end do
+
+    ! run least squares
+    y = matmul(x(:,idx),coef(1:ncols))
+
+    ! print stats and evaluation
+    call calc_stats(y,stat,coef(1:ncols))
+    call global_printeval("final",y,stat,outeval)
+    
+    ! print resulting acp
+    call global_printacp("final",ncols,idx,coef(1:ncols),outacp)
+
+  end subroutine runtest
 
   ! Run least squares using ndim columns given by idx. Returns the
   ! coefficients in coef(1:ndim).
