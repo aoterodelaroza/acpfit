@@ -219,6 +219,8 @@ contains
     logical :: ok
     integer :: lu, i
 
+    real*8, parameter :: hg = HUGE(1d0)
+
     inquire(file=file,exist=ok)
     if (.not.ok) &
        call ferror("gety","File not found (" // trim(label) // "): " // trim(file),faterr)
@@ -227,6 +229,10 @@ contains
        read(lu,*,err=999) y(i)
     end do
     call fclose(lu)
+
+    if (any(y > hg) .or. any(y < -hg) .or. any(y /= y)) then
+       call ferror("gety","Inf/NaN in file ("//trim(label)//"): "//trim(file),faterr)
+    end if
 
     return
 999 continue
