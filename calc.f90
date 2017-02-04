@@ -111,21 +111,22 @@ contains
   ! atom, select the combination of nuse terms that minimizes the error
   ! subject to the maximum norm (maxnorm) and/or maximum absolute coefficient
   ! (maxcoef) constraints.
-  subroutine runfit_scanatom(nuse,maxnorm,maxcoef,outeval,outacp)
+  subroutine runfit_scanatom(nuse,maxnorm,maxcoef,maxenergy,imaxenergy,outeval,outacp)
     use global, only: ncols, nfitw, nfit, global_printeval, x, global_printacp, natoms,&
        atom, maxlmax, lmax, nexp, w, ywtarget, coef0, col, lname
     use types, only: stats
     use tools_io, only: uout, string, ferror, faterr, string, ioj_left
     
     integer, intent(in) :: nuse
-    real*8, intent(in) :: maxnorm, maxcoef
+    real*8, intent(in) :: maxnorm, maxcoef, maxenergy
+    integer, intent(in) :: imaxenergy(:)
     character*(*), intent(in) :: outeval
     character*(*), intent(in) :: outacp
 
     character(len=:), allocatable :: str, aux, aux2
     integer :: i, j, k, ncyc, n1, n2, nanuse, nanz, nsame, id
     real*8 :: coef(nfitw), y(nfitw), y0(nfit), wrms, minwrms, norm, minnorm
-    real*8 :: acoef, minacoef
+    real*8 :: acoef, minacoef, aene, minene
     type(stats) :: stat
     integer, allocatable :: iatidx(:,:), natidx(:)
     integer :: co(nuse), idx(natoms*nuse), idx0(natoms*nuse)
@@ -143,6 +144,14 @@ contains
     nanuse = natoms*nuse
     if (nanuse > nfitw) &
        call ferror("runfit_inf","Too many columns ("//string(ncols)//") for current data ("//string(nfitw)//")",faterr)
+
+    ! check the maxenergy
+    if (imaxenergy(1) /= 0) then
+       do i = 1, size(imaxenergy,1)
+          if (imaxenergy(i) < 1 .or. imaxenergy(i) > nfit) &
+             call ferror("runfit_inf","MAXENERGY system outside trainig set range",faterr)
+       end do
+    end if
 
     ! prepare the sets of atomic indices
     allocate(iatidx(maxlmax*nexp,natoms),natidx(natoms))
@@ -179,10 +188,11 @@ contains
           minwrms = huge(1d0)
           minnorm = huge(1d0)
           minacoef = huge(1d0)
+          minene = huge(1d0)
           
           ! Run over all the combinations. To save memory and allow
           ! parallelization, use Buckles' algorithm.
-          !$omp parallel do private(coef,y,wrms,norm,acoef,co) firstprivate(idx)
+          !$omp parallel do private(coef,y,wrms,norm,acoef,co,aene) firstprivate(idx)
           do j = 1, binom(natidx(i),nuse)
              ! get the indices for this combination
              call comb(natidx(i),nuse,j,co)
@@ -195,14 +205,20 @@ contains
              wrms = sqrt(sum((y-ywtarget)**2) / sum(w))
              norm = sqrt(sum(coef(1:nanz)**2)) * coef0
              acoef = maxval(abs(coef(1:nanz))) * coef0
+             if (imaxenergy(i) > 0) then
+                call energy_contrib(nanz,idx(1:nanz),coef(1:nanz),imaxenergy,aene)
+             else
+                aene = 0d0
+             end if
 
              ! apply the discard criteria; save minimum wrms
              !$omp critical (save)
-             if (wrms < minwrms .and. norm < maxnorm .and. acoef < maxcoef) then
+             if (wrms < minwrms .and. norm < maxnorm .and. acoef < maxcoef .and. aene < maxenergy) then
                 idx0 = idx
                 minwrms = wrms
                 minnorm = norm
                 minacoef = acoef
+                minene = aene
              end if
              !$omp end critical (save)
           end do
@@ -238,6 +254,7 @@ contains
           write (uout,'("  wrms    = ",A)') string(minwrms,'f',14,8)
           write (uout,'("  norm    = ",A)') string(minnorm,'f',14,8)
           write (uout,'("  maxcoef = ",A)') string(minacoef,'f',14,8)
+          write (uout,'("  maxene  = ",A)') string(minene,'f',14,8)
           write (uout,'("  nsame   = ",A)') string(nsame)
 
           ! exit if we're done
@@ -582,6 +599,26 @@ contains
     end if
 
   end subroutine lsqr
+
+  !> Calculate the energy terms for the ACP given by indices idx with
+  !> coefficients coef (each of those with dimension ndim) and return
+  !> the maximum energy contribution from all the terms in absolute
+  !> value.
+  subroutine energy_contrib(ndim,idx,coef,imaxenergy,aene)
+    use global, only: nfit, x
+    integer, intent(in) :: ndim
+    integer, intent(in) :: idx(ndim)
+    real*8, intent(out) :: coef(ndim)
+    integer, intent(in) :: imaxenergy(:)
+    real*8, intent(out) :: aene
+
+    real*8 :: xwork(size(imaxenergy,1),ndim), y(size(imaxenergy,1))
+    
+    xwork = x(imaxenergy,idx)
+    y = matmul(xwork,coef)
+    aene = maxval(abs(y))
+
+  end subroutine energy_contrib
 
   !> Calculate n choose k using the multiplicative formula.
   function choose(n,k)

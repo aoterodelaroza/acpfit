@@ -172,7 +172,7 @@ contains
        if (iset_ini(i) < 1 .or. iset_ini(i) > nfit) &
           call ferror("global_check","erroneous initial system in set " // string(iset_label(i)),faterr)
        if (iset_ini(i)+iset_n(i)*iset_step(i)-1 > nfit) &
-          call ferror("global_check","erroneous final system in set " // string(iset_label(i)),faterr)
+          call ferror("global_check","erroneous number of systems in set " // string(iset_label(i)),faterr)
     end do
 
   end subroutine global_check
@@ -386,19 +386,22 @@ contains
   end subroutine global_printacp
 
   ! read and parse input
-  subroutine global_input(nefilesi,efilei,imode,ifit_n,fit_maxnorm,fit_maxcoef)
+  subroutine global_input(nefilesi,efilei,imode,ifit_n,fit_maxnorm,fit_maxcoef,&
+     fit_maxenergy,imaxenergy)
     use tools_io, only: uin, getline, lgetword, equal, getword, faterr, ferror,&
        isinteger, isreal
     use types, only: realloc
     integer, intent(out) :: nefilesi ! number of files
-    character*255, allocatable, intent(out) :: efilei(:) ! name of files
+    character*255, allocatable, intent(inout) :: efilei(:) ! name of files
     integer, intent(out) :: ifit_n 
     integer, intent(out) :: imode
     real*8, intent(out) :: fit_maxnorm
     real*8, intent(out) :: fit_maxcoef
+    real*8, intent(out) :: fit_maxenergy
+    integer, allocatable, intent(inout) :: imaxenergy(:)
 
     character(len=:), allocatable :: word, line, subline, aux
-    integer :: natoms_ang, lp, idum, i, idx, lp2
+    integer :: natoms_ang, lp, idum, i, idx, lp2, n
     real*8 :: rdum
     logical :: ok
 
@@ -407,9 +410,14 @@ contains
     nefilesi = 0
     if (allocated(efilei)) deallocate(efilei)
     allocate(efilei(1))
+    efilei(1) = ""
     fit_maxnorm = huge(1d0)
     fit_maxcoef = huge(1d0)
+    fit_maxenergy = huge(1d0)
     imode = imode_no
+    if (allocated(imaxenergy)) deallocate(imaxenergy)
+    allocate(imaxenergy(1))
+    imaxenergy(1) = 0
 
     ! parse the input
     do while (getline(uin,line))
@@ -580,6 +588,25 @@ contains
                       ok = isreal(fit_maxcoef,line,lp)
                       if (.not.ok) &
                          call ferror("acpfit","wrong RUN FIT MAXCOEF syntax",faterr)
+                   elseif (equal(word,"maxenergy")) then
+                      ok = isreal(fit_maxenergy,line,lp)
+                      if (.not.ok) &
+                         call ferror("acpfit","wrong RUN FIT MAXENERGY syntax",faterr)
+                      n = 0
+                      do while (.true.)
+                         lp2 = lp
+                         ok = isinteger(idum,line,lp)
+                         if (.not.ok) then
+                            lp = lp2
+                            exit
+                         end if
+                         n = n + 1
+                         if (n > size(imaxenergy,1)) call realloc(imaxenergy,2*n)
+                         imaxenergy(n) = idum
+                      end do
+                      if (n == 0) &
+                         call ferror("acpfit","No systems indicated in MAXENERGY",faterr)
+                      call realloc(imaxenergy,n)
                    elseif (len_trim(word) > 0) then
                       call ferror("acpfit","unknown RUN FIT keyword: " // word,faterr)
                    else

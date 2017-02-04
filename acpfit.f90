@@ -32,7 +32,8 @@ program acpfit
   type(stats) :: statempty
   real*8, allocatable :: ydum(:)
   integer :: ifit_n, imode
-  real*8 :: fit_maxnorm, fit_maxcoef
+  real*8 :: fit_maxnorm, fit_maxcoef, fit_maxenergy
+  integer, allocatable :: imaxenergy(:)
 
   ! energy terms files in manual input
   integer :: nefilesi ! number of files
@@ -58,7 +59,8 @@ program acpfit
   call global_init()
 
   ! read and parse the input
-  call global_input(nefilesi,efilei,imode,ifit_n,fit_maxnorm,fit_maxcoef)
+  call global_input(nefilesi,efilei,imode,ifit_n,fit_maxnorm,fit_maxcoef,fit_maxenergy,&
+     imaxenergy)
 
   ! build the file names and process user input re specific energy term file names
   call makefilenames(nefilesi,efilei)
@@ -95,7 +97,8 @@ program acpfit
         ! all terms in the ACP
         call runfit_inf(outeval,outacp)
      elseif (ifit_n > 0) then
-        call runfit_scanatom(ifit_n,fit_maxnorm,fit_maxcoef,outeval,outacp)
+        call runfit_scanatom(ifit_n,fit_maxnorm,fit_maxcoef,fit_maxenergy,imaxenergy,&
+           outeval,outacp)
      end if
   elseif (imode == imode_fit_manual) then
      call runfit_manual(outeval,outacp)
