@@ -118,7 +118,8 @@ contains
     use tools_io, only: uout, string, ferror, faterr, string, ioj_left
     
     integer, intent(in) :: nuse
-    real*8, intent(in) :: maxnorm, maxcoef, maxenergy
+    real*8, intent(in) :: maxnorm, maxcoef
+    real*8, intent(in) :: maxenergy(:)
     integer, intent(in) :: imaxenergy(:)
     character*(*), intent(in) :: outeval
     character*(*), intent(in) :: outacp
@@ -126,7 +127,7 @@ contains
     character(len=:), allocatable :: str, aux, aux2
     integer :: i, j, k, ncyc, n1, n2, nanuse, nanz, nsame, id
     real*8 :: coef(nfitw), y(nfitw), y0(nfit), wrms, minwrms, norm, minnorm
-    real*8 :: acoef, minacoef, aene, minene
+    real*8 :: acoef, minacoef, aene(size(imaxenergy,1)), minene(size(imaxenergy,1))
     type(stats) :: stat
     integer, allocatable :: iatidx(:,:), natidx(:)
     integer :: co(nuse), idx(natoms*nuse), idx0(natoms*nuse)
@@ -213,7 +214,7 @@ contains
 
              ! apply the discard criteria; save minimum wrms
              !$omp critical (save)
-             if (wrms < minwrms .and. norm < maxnorm .and. acoef < maxcoef .and. aene < maxenergy) then
+             if (wrms < minwrms .and. norm < maxnorm .and. acoef < maxcoef .and. all(aene < maxenergy)) then
                 idx0 = idx
                 minwrms = wrms
                 minnorm = norm
@@ -254,7 +255,7 @@ contains
           write (uout,'("  wrms    = ",A)') string(minwrms,'f',14,8)
           write (uout,'("  norm    = ",A)') string(minnorm,'f',14,8)
           write (uout,'("  maxcoef = ",A)') string(minacoef,'f',14,8)
-          write (uout,'("  maxene  = ",A)') string(minene,'f',14,8)
+          write (uout,'("  maxene  = ",5(A,X))') (string(minene(j),'f',14,8),j=1,size(imaxenergy,1))
           write (uout,'("  nsame   = ",A)') string(nsame)
 
           ! exit if we're done
@@ -610,13 +611,13 @@ contains
     integer, intent(in) :: idx(ndim)
     real*8, intent(in) :: coef(ndim)
     integer, intent(in) :: imaxenergy(:)
-    real*8, intent(out) :: aene
+    real*8, intent(out) :: aene(size(imaxenergy,1))
 
     integer :: i
     
     aene = 0d0
     do i = 1, ndim
-       aene = max(aene,maxval(abs(x(imaxenergy,idx(i))*coef(i))))
+       aene = max(aene,abs(x(imaxenergy,idx(i))*coef(i)))
     end do
 
   end subroutine energy_contrib

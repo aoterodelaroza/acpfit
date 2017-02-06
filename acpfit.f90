@@ -30,9 +30,9 @@ program acpfit
 
   character(len=:), allocatable :: optv
   type(stats) :: statempty
-  real*8, allocatable :: ydum(:)
+  real*8, allocatable :: ydum(:), fit_maxenergy(:)
   integer :: ifit_n, imode
-  real*8 :: fit_maxnorm, fit_maxcoef, fit_maxenergy
+  real*8 :: fit_maxnorm, fit_maxcoef
   integer, allocatable :: imaxenergy(:)
 
   ! energy terms files in manual input

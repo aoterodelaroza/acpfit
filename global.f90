@@ -397,7 +397,7 @@ contains
     integer, intent(out) :: imode
     real*8, intent(out) :: fit_maxnorm
     real*8, intent(out) :: fit_maxcoef
-    real*8, intent(out) :: fit_maxenergy
+    real*8, allocatable, intent(inout) :: fit_maxenergy(:)
     integer, allocatable, intent(inout) :: imaxenergy(:)
 
     character(len=:), allocatable :: word, line, subline, aux
@@ -413,11 +413,13 @@ contains
     efilei(1) = ""
     fit_maxnorm = huge(1d0)
     fit_maxcoef = huge(1d0)
-    fit_maxenergy = huge(1d0)
     imode = imode_no
     if (allocated(imaxenergy)) deallocate(imaxenergy)
     allocate(imaxenergy(1))
     imaxenergy(1) = 0
+    if (allocated(fit_maxenergy)) deallocate(fit_maxenergy)
+    allocate(fit_maxenergy(1))
+    fit_maxenergy(1) = huge(1d0)
 
     ! parse the input
     do while (getline(uin,line))
@@ -589,9 +591,6 @@ contains
                       if (.not.ok) &
                          call ferror("acpfit","wrong RUN FIT MAXCOEF syntax",faterr)
                    elseif (equal(word,"maxenergy")) then
-                      ok = isreal(fit_maxenergy,line,lp)
-                      if (.not.ok) &
-                         call ferror("acpfit","wrong RUN FIT MAXENERGY syntax",faterr)
                       n = 0
                       do while (.true.)
                          lp2 = lp
@@ -600,13 +599,20 @@ contains
                             lp = lp2
                             exit
                          end if
+                         ok = isreal(rdum,line,lp)
+                         if (.not.ok) &
+                            call ferror("acpfit","Wrong syntax in MAXENERGY",faterr)
+
                          n = n + 1
                          if (n > size(imaxenergy,1)) call realloc(imaxenergy,2*n)
+                         if (n > size(fit_maxenergy,1)) call realloc(fit_maxenergy,2*n)
                          imaxenergy(n) = idum
+                         fit_maxenergy(n) = rdum
                       end do
                       if (n == 0) &
                          call ferror("acpfit","No systems indicated in MAXENERGY",faterr)
                       call realloc(imaxenergy,n)
+                      call realloc(fit_maxenergy,n)
                    elseif (len_trim(word) > 0) then
                       call ferror("acpfit","unknown RUN FIT keyword: " // word,faterr)
                    else
