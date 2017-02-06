@@ -608,15 +608,16 @@ contains
     use global, only: nfit, x
     integer, intent(in) :: ndim
     integer, intent(in) :: idx(ndim)
-    real*8, intent(out) :: coef(ndim)
+    real*8, intent(in) :: coef(ndim)
     integer, intent(in) :: imaxenergy(:)
     real*8, intent(out) :: aene
 
-    real*8 :: xwork(size(imaxenergy,1),ndim), y(size(imaxenergy,1))
+    integer :: i
     
-    xwork = x(imaxenergy,idx)
-    y = matmul(xwork,coef)
-    aene = maxval(abs(y))
+    aene = 0d0
+    do i = 1, ndim
+       aene = max(aene,maxval(abs(x(imaxenergy,idx(i))*coef(i))))
+    end do
 
   end subroutine energy_contrib
 
