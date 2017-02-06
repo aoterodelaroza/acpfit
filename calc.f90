@@ -205,7 +205,7 @@ contains
              wrms = sqrt(sum((y-ywtarget)**2) / sum(w))
              norm = sqrt(sum(coef(1:nanz)**2)) * coef0
              acoef = maxval(abs(coef(1:nanz))) * coef0
-             if (imaxenergy(i) > 0) then
+             if (imaxenergy(1) > 0) then
                 call energy_contrib(nanz,idx(1:nanz),coef(1:nanz),imaxenergy,aene)
              else
                 aene = 0d0
