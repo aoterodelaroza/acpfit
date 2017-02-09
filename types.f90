@@ -29,6 +29,7 @@ module types
      module procedure realloc3r
      module procedure realloc4r
      module procedure realloc5r
+     module procedure realloc1i2
      module procedure realloc1i
      module procedure realloc2i
      module procedure realloc1c
@@ -204,6 +205,27 @@ contains
     call move_alloc(temp,a)
 
   end subroutine realloc5r
+
+  !> Adapt the size of an allocatable 1D integer*2 array
+  subroutine realloc1i2(a,nnew)
+    use tools_io, only: ferror, faterr
+
+    integer*2, intent(inout), allocatable :: a(:) !< Input array, integer, 1D
+    integer, intent(in) :: nnew !< New dimension
+    
+    integer*2, allocatable :: temp(:)
+    integer :: nold
+    
+    if (.not.allocated(a)) &
+       call ferror('realloc1i2','array not allocated',faterr)
+    nold = size(a)
+    if (nold == nnew) return
+    allocate(temp(nnew))
+    
+    temp(1:min(nnew,nold)) = a(1:min(nnew,nold))
+    call move_alloc(temp,a)
+
+  end subroutine realloc1i2
 
   !> Adapt the size of an allocatable 1D integer array
   subroutine realloc1i(a,nnew)

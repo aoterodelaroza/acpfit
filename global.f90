@@ -90,11 +90,12 @@ module global
 
   ! run modes
   integer, parameter :: imode_fit = 1
-  integer, parameter :: imode_fit_manual = 2
-  integer, parameter :: imode_eval = 3
-  integer, parameter :: imode_eval_file = 4
-  integer, parameter :: imode_test = 5
-  integer, parameter :: imode_no = 6
+  integer, parameter :: imode_fitl = 2
+  integer, parameter :: imode_fit_manual = 3
+  integer, parameter :: imode_eval = 4
+  integer, parameter :: imode_eval_file = 5
+  integer, parameter :: imode_test = 6
+  integer, parameter :: imode_no = 7
 
 contains
   
@@ -387,7 +388,7 @@ contains
 
   ! read and parse input
   subroutine global_input(nefilesi,efilei,imode,ifit_n,fit_maxnorm,fit_maxcoef,&
-     fit_maxenergy,imaxenergy)
+     fit_maxenergy,imaxenergy,minl,maxl)
     use tools_io, only: uin, getline, lgetword, equal, getword, faterr, ferror,&
        isinteger, isreal
     use types, only: realloc
@@ -399,6 +400,8 @@ contains
     real*8, intent(out) :: fit_maxcoef
     real*8, allocatable, intent(inout) :: fit_maxenergy(:)
     integer, allocatable, intent(inout) :: imaxenergy(:)
+    integer, intent(inout) :: minl(30)
+    integer, intent(inout) :: maxl(30)
 
     character(len=:), allocatable :: word, line, subline, aux
     integer :: natoms_ang, lp, idum, i, idx, lp2, n
@@ -420,6 +423,8 @@ contains
     if (allocated(fit_maxenergy)) deallocate(fit_maxenergy)
     allocate(fit_maxenergy(1))
     fit_maxenergy(1) = huge(1d0)
+    minl = 0
+    maxl = huge(1)
 
     ! parse the input
     do while (getline(uin,line))
@@ -557,28 +562,34 @@ contains
        elseif (equal(word,'run')) then
           ! RUN ...
           word = lgetword(line,lp)
-          if (equal(word,'fit')) then
+          if (equal(word,'fit').or.equal(word,'fitl')) then
              ! RUN FIT ...
-             imode = imode_fit
+             if (equal(word,'fit')) then
+                imode = imode_fit
+             else
+                imode = imode_fitl
+             end if
              lp2 = lp
              word = lgetword(line,lp)
              ifit_n = 0
-             if (equal(word,"inf")) then
+             if (imode == imode_fit .and. equal(word,"inf")) then
                 ! RUN FIT INF ...
                 ifit_n = -1
-             elseif (len_trim(word) < 1) then
+             elseif (imode == imode_fit .and. len_trim(word) < 1) then
                 imode = imode_fit_manual
                 ifit_n = 0
              else
                 lp = lp2
-                ok = isinteger(idum,line,lp)
-                if (ok) then
-                   if (idum > 0) then
-                      ifit_n = idum
+                if (imode == imode_fit) then
+                   ok = isinteger(idum,line,lp)
+                   if (ok) then
+                      if (idum > 0) then
+                         ifit_n = idum
+                      end if
                    end if
+                   if (ifit_n == 0) &
+                      call ferror("acpfit","wrong RUN FIT syntax",faterr)
                 end if
-                if (ifit_n == 0) &
-                   call ferror("acpfit","wrong RUN FIT syntax",faterr)
                 ! RUN ... [MAXNORM norm.r] [MAXCOEF coef.r]
                 do while(.true.)
                    word = lgetword(line,lp)
@@ -613,6 +624,20 @@ contains
                          call ferror("acpfit","No systems indicated in MAXENERGY",faterr)
                       call realloc(imaxenergy,n)
                       call realloc(fit_maxenergy,n)
+                   elseif (equal(word,'maxl').or.equal(word,'minl')) then
+                      ! MINL|MAXL l.i s.i p.i d.i ...
+                      n = 0
+                      do while (isinteger(idum,line,lp))
+                         n = n + 1
+                         if (n > 30) &
+                            call ferror("acpfit","too many channels",faterr)
+                         if (equal(word,'maxl')) then
+                            maxl(n) = idum
+                         else
+                            minl(n) = idum
+                         end if
+                      end do
+                      call realloc(lmax,natoms_ang)
                    elseif (len_trim(word) > 0) then
                       call ferror("acpfit","unknown RUN FIT keyword: " // word,faterr)
                    else

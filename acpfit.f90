@@ -15,11 +15,11 @@
 ! along with this program.  If not, see
 ! <http://www.gnu.org/licenses/>.
 program acpfit
-  use calc, only: calc_stats, runfit_inf, runfit_scanatom, runfit_manual, &
+  use calc, only: calc_stats, runfit_inf, runfit_scanatom, runfitl, runfit_manual, &
      runeval_input, runeval_file, runtest
   use files, only: makefilenames, readfiles
   use global, only: fileroot, nset, iset_label, iset_ini, iset_n, iset_step, nfit,&
-     outempty, outeval, outacp, imode_fit, imode_fit_manual, imode_eval,&
+     outempty, outeval, outacp, imode_fit, imode_fitl, imode_fit_manual, imode_eval,&
      imode_eval_file, imode_test, global_init, global_input, global_fillcol,&
      global_printinfo, global_printeval, inacp
   use types, only: realloc, stats
@@ -31,7 +31,7 @@ program acpfit
   character(len=:), allocatable :: optv
   type(stats) :: statempty
   real*8, allocatable :: ydum(:), fit_maxenergy(:)
-  integer :: ifit_n, imode
+  integer :: ifit_n, imode, maxl(30), minl(30)
   real*8 :: fit_maxnorm, fit_maxcoef
   integer, allocatable :: imaxenergy(:)
 
@@ -60,7 +60,7 @@ program acpfit
 
   ! read and parse the input
   call global_input(nefilesi,efilei,imode,ifit_n,fit_maxnorm,fit_maxcoef,fit_maxenergy,&
-     imaxenergy)
+     imaxenergy,minl,maxl)
 
   ! build the file names and process user input re specific energy term file names
   call makefilenames(nefilesi,efilei)
@@ -98,8 +98,10 @@ program acpfit
         call runfit_inf(outeval,outacp)
      elseif (ifit_n > 0) then
         call runfit_scanatom(ifit_n,fit_maxnorm,fit_maxcoef,fit_maxenergy,imaxenergy,&
-           outeval,outacp)
+           outeval,outacp,minl,maxl)
      end if
+  elseif (imode == imode_fitl) then
+     call runfitl(fit_maxnorm,fit_maxcoef,fit_maxenergy,imaxenergy,outeval,outacp)
   elseif (imode == imode_fit_manual) then
      call runfit_manual(outeval,outacp)
   elseif (imode == imode_eval) then
