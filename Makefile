@@ -1,4 +1,4 @@
-### ifort with mkl
+## ifort with mkl
 FC = ifort
 #FCFLAGS = -g -CU -C -traceback -fpe0 -debug -openmp
 #LDFLAGS = -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -liomp5 -lpthread -openmp
@@ -7,14 +7,14 @@ FC = ifort
 FCFLAGS = -O3 -openmp
 LDFLAGS = -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -liomp5 -lpthread -openmp
 
-# ### gfortran with static blas and lapack
-# FC = gfortran-6
-# #FCFLAGS = -O3 -ffree-line-length-none 
-# FCFLAGS = -g -fbounds-check -Wall -Wunused-parameter -ffpe-trap=invalid -fbacktrace -fdump-core -ffree-line-length-none
-# #LIBS=liblapack.a libblas.a 
-# LIBS=-llapack -lblas
-# LDFLAGS = 
-# #LDFLAGS =
+#### gfortran with static blas and lapack
+#FC = gfortran-6
+##FCFLAGS = -O3 -ffree-line-length-none 
+#FCFLAGS = -g -fbounds-check -Wall -Wunused-parameter -ffpe-trap=invalid -fbacktrace -fdump-core -ffree-line-length-none
+##LIBS=liblapack.a libblas.a 
+#LIBS=-llapack -lblas
+#LDFLAGS = 
+##LDFLAGS =
 
 BINS=acpfit
 OBJS=files.o global.o types.o tools_io.o calc.o

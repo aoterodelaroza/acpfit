@@ -120,7 +120,8 @@ contains
     use tools_io, only: uout, string, ferror, faterr, string, ioj_left
     
     integer, intent(in) :: nuse
-    real*8, intent(in) :: maxnorm, maxcoef
+    real*8, intent(in) :: maxnorm
+    real*8, intent(in) :: maxcoef(:,:,:)
     real*8, intent(in) :: maxenergy(:)
     integer, intent(in) :: imaxenergy(:)
     character*(*), intent(in) :: outeval
@@ -141,10 +142,10 @@ contains
     write (uout,'("+ Generating ACP using atom iterations, with ",A," terms per atom")') string(nuse)
     if (maxnorm < huge(1d0)) &
        write (uout,'("  Maximum norm: ",A)') string(maxnorm,'f',12,6)
-    if (maxcoef < huge(1d0)) &
-       write (uout,'("  Maximum abs(coef): ",A)') string(maxcoef,'f',12,6)
     if (imaxenergy(1) > 0) &
        write (uout,'("  Maximum abs(ene): ",5(A,X))') (string(maxenergy(j),'f',12,6),j=1,size(maxenergy,1))
+    if (any(maxcoef < huge(1d0))) &
+       write (uout,'("  Maximum abs(coef) constraint: ",A)') string(maxval(abs(maxcoef),maxcoef < huge(1d0)),'f',12,6)
     write (uout,*)
 
     ! some dimensions
@@ -204,7 +205,7 @@ contains
           
           ! Run over all the combinations. To save memory and allow
           ! parallelization, use Buckles' algorithm.
-          !$omp parallel do private(coef,y,wrms,norm,acoef,co,aene,ll) firstprivate(idx) schedule(dynamic)
+          !$omp parallel do private(coef,y,wrms,norm,acoef,co,aene,ll,ok) firstprivate(idx) schedule(dynamic)
           do j = 1, binom(natidx(i),nuse)
              ! get the indices for this combination
              call comb(natidx(i),nuse,j,co)
@@ -231,9 +232,15 @@ contains
                 aene = 0d0
              end if
 
+             ! check the maxcoef conditions
+             ok = .true.
+             do k = 1, nanz
+                ok = ok .and. abs(coef(k) * coef0) < maxcoef(col(idx(k))%iexp,col(idx(k))%l,col(idx(k))%iatom)
+             end do
+
              ! apply the discard criteria; save minimum wrms
              !$omp critical (save)
-             if (wrms < minwrms .and. norm < maxnorm .and. acoef < maxcoef .and. all(aene < maxenergy)) then
+             if (ok .and. wrms < minwrms .and. norm < maxnorm .and. all(aene < maxenergy)) then
                 idx0 = idx
                 minwrms = wrms
                 minnorm = norm
@@ -306,7 +313,8 @@ contains
     use types, only: stats
     use tools_io, only: uout, string, ferror, faterr, string, ioj_left
     
-    real*8, intent(in) :: maxnorm, maxcoef
+    real*8, intent(in) :: maxnorm
+    real*8, intent(in) :: maxcoef(:,:,:)
     real*8, intent(in) :: maxenergy(:)
     integer, intent(in) :: imaxenergy(:)
     character*(*), intent(in) :: outeval
@@ -327,10 +335,10 @@ contains
     write (uout,'("+ Generating ACP using channel + atom iterations")') 
     if (maxnorm < huge(1d0)) &
        write (uout,'("  Maximum norm: ",A)') string(maxnorm,'f',12,6)
-    if (maxcoef < huge(1d0)) &
-       write (uout,'("  Maximum abs(coef): ",A)') string(maxcoef,'f',12,6)
     if (imaxenergy(1) > 0) &
        write (uout,'("  Maximum abs(ene): ",5(A,X))') (string(maxenergy(j),'f',12,6),j=1,size(maxenergy,1))
+    if (any(maxcoef < huge(1d0))) &
+       write (uout,'("  Maximum abs(coef) constraint: ",A)') string(maxval(abs(maxcoef),maxcoef < huge(1d0)),'f',12,6)
     write (uout,*)
 
     ! check the maxenergy

@@ -30,6 +30,8 @@ module global
   public :: whichatom
   public :: whichl
   public :: whichcol
+  public :: whichexp
+  private :: readmaxcoef
 
   ! file prefix
   character(len=:), allocatable :: fileroot !< file prefix
@@ -134,6 +136,7 @@ contains
     allocate(iset_ini(1))
     allocate(iset_n(1))
     allocate(iset_step(1))
+    lmax = -1
 
   end subroutine global_init
 
@@ -400,7 +403,7 @@ contains
     integer, intent(out) :: ifit_n 
     integer, intent(out) :: imode
     real*8, intent(out) :: fit_maxnorm
-    real*8, intent(out) :: fit_maxcoef
+    real*8, allocatable, intent(inout) :: fit_maxcoef(:,:,:)
     real*8, allocatable, intent(inout) :: fit_maxenergy(:)
     integer, allocatable, intent(inout) :: imaxenergy(:)
     integer, intent(inout) :: minl(30)
@@ -418,7 +421,6 @@ contains
     allocate(efilei(1))
     efilei(1) = ""
     fit_maxnorm = huge(1d0)
-    fit_maxcoef = huge(1d0)
     imode = imode_no
     if (allocated(imaxenergy)) deallocate(imaxenergy)
     allocate(imaxenergy(1))
@@ -564,6 +566,18 @@ contains
           end if
        elseif (equal(word,'run')) then
           ! RUN ...
+          ! allocate maxcoef array          
+          if (natoms == 0) &
+             call ferror("acpfit","missing ATOM keyword",faterr)
+          if (any(lmax < 0)) &
+             call ferror("acpfit","missing LMAX keyword",faterr)
+          if (nexp == 0) &
+             call ferror("acpfit","missing EXP keyword",faterr)
+          maxlmax = maxval(lmax)
+          if (allocated(fit_maxcoef)) deallocate(fit_maxcoef)
+          allocate(fit_maxcoef(nexp,maxlmax,natoms))
+          fit_maxcoef = huge(1d0)
+
           word = lgetword(line,lp)
           if (equal(word,'fit').or.equal(word,'fitl')) then
              ! RUN FIT ...
@@ -601,9 +615,13 @@ contains
                       if (.not.ok) &
                          call ferror("acpfit","wrong RUN FIT MAXNORM syntax",faterr)
                    elseif (equal(word,"maxcoef")) then
-                      ok = isreal(fit_maxcoef,line,lp)
+                      ok = isreal(rdum,line,lp)
                       if (.not.ok) &
                          call ferror("acpfit","wrong RUN FIT MAXCOEF syntax",faterr)
+                      fit_maxcoef = abs(rdum)
+                   elseif (equal(word,"maxcfile")) then
+                      word = getword(line,lp)
+                      call readmaxcoef(word,fit_maxcoef)
                    elseif (equal(word,"maxenergy")) then
                       n = 0
                       do while (.true.)
@@ -742,5 +760,64 @@ contains
     end do
 
   end function whichcol
+
+  ! Determine the exponent index corresponding to a given value of n
+  ! and exponent.
+  function whichexp(n,e)
+    integer, intent(in) :: n
+    real*8, intent(in) :: e
+    integer :: whichexp
+    
+    integer :: i
+
+    whichexp = 0
+    do i = 1, nexp
+       if (nval(i) == n .and. (abs(eexp(i)-e) < 1d-12)) then
+          whichexp = i
+       end if
+    end do
+
+  end function whichexp
+
+  !> Read the maximum coefficient conditions from an external file
+  subroutine readmaxcoef(file,maxcoef)
+    use tools_io, only: ferror, faterr, fopen_read, fclose, getline, getword,&
+       isreal, isinteger
+    character*(*), intent(in) :: file
+    real*8, intent(inout), allocatable :: maxcoef(:,:,:)
+
+    logical :: ok
+    integer :: lu, lp, idum, iatom, il, iexp
+    real*8 :: rdum1, rdum2
+    character(len=:), allocatable :: line, word, word2
+
+    inquire(file=file,exist=ok)
+    if (.not.ok) &
+       call ferror("readmaxcoef","File not found: " // trim(file),faterr)
+
+    lu = fopen_read(file)
+    do while(getline(lu,line,.false.))    
+       lp = 1
+       word = getword(line,lp)
+       word2 = getword(line,lp)
+       ok = isinteger(idum,line,lp)
+       ok = ok .and. isreal(rdum1,line,lp)
+       ok = ok .and. isreal(rdum2,line,lp)
+
+       iatom = whichatom(word)
+       il = whichl(word2)
+       iexp = whichexp(idum,rdum1)
+       ok = ok .and. (iatom > 0) .and. (il > 0) .and. (iexp > 0)
+       if (.not.ok) &
+          call ferror("readmaxcoef","Error reading coef file: " // trim(line),faterr)
+
+       if (iatom > size(maxcoef,3) .or. il > size(maxcoef,2) .or. iexp > size(maxcoef,1)) &
+          call ferror("readmaxcoef","Unknown atom/l/cofficient in: " // trim(line),faterr)
+
+       maxcoef(iexp,il,iatom) = rdum2
+    end do
+    call fclose(lu)
+    
+  end subroutine readmaxcoef
 
 end module global
