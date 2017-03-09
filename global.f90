@@ -814,7 +814,7 @@ contains
        if (iatom > size(maxcoef,3) .or. il > size(maxcoef,2) .or. iexp > size(maxcoef,1)) &
           call ferror("readmaxcoef","Unknown atom/l/cofficient in: " // trim(line),faterr)
 
-       maxcoef(iexp,il,iatom) = rdum2
+       maxcoef(iexp,il,iatom) = abs(rdum2)
     end do
     call fclose(lu)
     
