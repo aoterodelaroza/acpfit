@@ -44,7 +44,7 @@ contains
     if (abs(sum(w)) < 1d-10) then
        stat%wrms = -1d0
     else
-       stat%wrms = sqrt(sum(w * (y-ytarget)**2) / sum(w))
+       stat%wrms = sqrt(sum(w * (y-ytarget)**2))
     end if
 
     ! allocate rms and mae
@@ -223,7 +223,7 @@ contains
              
              ! run least squares and calculate wrms
              call lsqr(nanz,idx(1:nanz),coef,y)
-             wrms = sqrt(sum((y-ywtarget)**2) / sum(w))
+             wrms = sqrt(sum((y-ywtarget)**2))
              norm = sqrt(sum(coef(1:nanz)**2)) * coef0
              acoef = maxval(abs(coef(1:nanz))) * coef0
              if (imaxenergy(1) > 0) then
@@ -448,7 +448,7 @@ contains
 
                    ! run least squares and calculate wrms
                    call lsqr(nn,idx(1:nn),coef,y)
-                   wrms = sqrt(sum((y-ywtarget)**2) / sum(w))
+                   wrms = sqrt(sum((y-ywtarget)**2))
                    norm = sqrt(sum(coef(1:nn)**2)) * coef0
                    acoef = maxval(abs(coef(1:nn))) * coef0
                    if (imaxenergy(1) > 0) then
