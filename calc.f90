@@ -307,7 +307,7 @@ contains
   ! atom, select the combination of nuse terms that minimizes the error
   ! subject to the maximum norm (maxnorm) and/or maximum absolute coefficient
   ! (maxcoef) constraints.
-  subroutine runfitl(maxnorm,maxcoef,maxenergy,imaxenergy,ltop,outeval,outacp)
+  subroutine runfitl(maxnorm,maxcoef,maxenergy,imaxenergy,ltop,seq,outeval,outacp)
     use global, only: ncols, nfitw, nfit, global_printeval, x, global_printacp, natoms,&
        atom, maxlmax, lmax, nexp, w, ywtarget, coef0, col, lname
     use types, only: stats, realloc
@@ -318,6 +318,7 @@ contains
     real*8, intent(in) :: maxenergy(:)
     integer, intent(in) :: imaxenergy(:)
     integer, intent(in) :: ltop(:,:)
+    integer, intent(in) :: seq(:,:)
     character*(*), intent(in) :: outeval
     character*(*), intent(in) :: outacp
 
@@ -331,8 +332,9 @@ contains
     type(stats) :: stat
     integer, allocatable :: iatidx(:,:,:), idx0(:,:,:), nidx0(:,:), idx(:)
     integer, allocatable :: co(:), idxroot(:), idxsave(:), idxsave2(:)
-    integer :: id, nroot, nn
+    integer :: id, nroot, nn, nord, iord
     logical :: ok, lupdate, saved
+    integer, allocatable :: iord_atom(:), iord_chan(:)
 
     ! header
     write (uout,'("+ Generating ACP using channel + atom iterations")') 
@@ -352,14 +354,22 @@ contains
        end do
     end if
 
+    ! atom/channel order
+    nord = count(seq > 0)
+    allocate(iord_atom(nord), iord_chan(nord))
+    do i = 1, natoms
+       do j = 1, lmax(i)
+          iord_atom(seq(j,i)) = i
+          iord_chan(seq(j,i)) = j
+       end do
+    end do
+    
     ! prepare the sets of atomic indices
     allocate(iatidx(nexp,maxlmax,natoms))
     iatidx = 0
     n1 = 0
-    nsame0 = 0
     do i = 1, natoms
        do j = 1, lmax(i)
-          nsame0 = nsame0 + 1
           do k = 1, nexp
              n1 = n1 + 1
              iatidx(k,j,i) = n1
@@ -386,157 +396,155 @@ contains
        write (uout,'("# Cycle ",A)') string(ncyc)
 
        ! run the loop over atoms
-       do i = 1, natoms
+       do iord = 1, nord
+          i = iord_atom(iord)
+          j = iord_chan(iord)
           write (uout,'("# Atom ",A," (",A,")")') string(i), string(atom(i))
+          write (uout,'("# Channel ",A," (",A,")")') string(j), string(lname(j))
 
-          ! run the loop over angular momentum channels
-          do j = 1, lmax(i)
-             write (uout,'("# Channel ",A," (",A,")")') string(j), string(lname(j))
-
-             ! build the root index
-             nroot = count(idx0 /= 0)
-             if (allocated(idxroot)) deallocate(idxroot)
-             allocate(idxroot(max(nroot,1)))
-             nroot = 0
-             do k = 1, natoms
-                do l = 1, lmax(k)
-                   do m = 1, nidx0(l,k)
-                      nroot = nroot + 1
-                      idxroot(nroot) = idx0(m,l,k)
-                   end do
+          ! build the root index
+          nroot = count(idx0 /= 0)
+          if (allocated(idxroot)) deallocate(idxroot)
+          allocate(idxroot(max(nroot,1)))
+          nroot = 0
+          do k = 1, natoms
+             do l = 1, lmax(k)
+                do m = 1, nidx0(l,k)
+                   nroot = nroot + 1
+                   idxroot(nroot) = idx0(m,l,k)
                 end do
              end do
+          end do
 
-             ! allocate the save array
-             if (allocated(idxsave)) deallocate(idxsave)
-             allocate(idxsave(1))
-             idxsave = 0
+          ! allocate the save array
+          if (allocated(idxsave)) deallocate(idxsave)
+          allocate(idxsave(1))
+          idxsave = 0
 
-             saved = .false.
-             ! run over all possible number of terms for this channel
-             do k = 1, min(ltop(j,i),nexp)
-                ! allocate the combination array
-                if (allocated(co)) deallocate(co)
-                allocate(co(k))
-                co = 0
+          saved = .false.
+          ! run over all possible number of terms for this channel
+          do k = 1, min(ltop(j,i),nexp)
+             ! allocate the combination array
+             if (allocated(co)) deallocate(co)
+             allocate(co(k))
+             co = 0
 
-                ! allocate the current index array and prepare the slice for the new combinations
-                if (allocated(idx)) deallocate(idx)
-                allocate(idx(nroot + k))
-                nn = nroot + k
-                idx(1:nroot) = idxroot
+             ! allocate the current index array and prepare the slice for the new combinations
+             if (allocated(idx)) deallocate(idx)
+             allocate(idx(nroot + k))
+             nn = nroot + k
+             idx(1:nroot) = idxroot
+             idx(nroot+1:) = 0
+
+             minwrms2 = huge(1d0)
+             minnorm2 = huge(1d0)
+             minacoef2 = huge(1d0)
+             minene2 = huge(1d0)
+
+             ! allocate the second save array
+             if (allocated(idxsave2)) deallocate(idxsave2)
+             allocate(idxsave2(k))
+             idxsave2 = 0
+
+             ! Run over all the combinations with this number of terms
+             !$omp parallel do private(coef,y,wrms,norm,acoef,aene,ok) firstprivate(co,idx)
+             do l = 1, binom(nexp,k)
+                ! get the indices for this combination
+                call comb(nexp,k,l,co)
+
+                ! put them together with the rest of the atoms
                 idx(nroot+1:) = 0
+                idx(nroot+1:nn) = iatidx(co,j,i)
 
-                minwrms2 = huge(1d0)
-                minnorm2 = huge(1d0)
-                minacoef2 = huge(1d0)
-                minene2 = huge(1d0)
+                ! run least squares and calculate wrms
+                call lsqr(nn,idx(1:nn),coef,y)
+                wrms = sqrt(sum((y-ywtarget)**2))
+                norm = sqrt(sum(coef(1:nn)**2)) * coef0
+                acoef = maxval(abs(coef(1:nn))) * coef0
+                if (imaxenergy(1) > 0) then
+                   call energy_contrib(nn,idx(1:nn),coef(1:nn),imaxenergy,aene)
+                else
+                   aene = 0d0
+                end if
 
-                ! allocate the second save array
-                if (allocated(idxsave2)) deallocate(idxsave2)
-                allocate(idxsave2(k))
-                idxsave2 = 0
-
-                ! Run over all the combinations with this number of terms
-                !$omp parallel do private(coef,y,wrms,norm,acoef,aene,ok) firstprivate(co,idx)
-                do l = 1, binom(nexp,k)
-                   ! get the indices for this combination
-                   call comb(nexp,k,l,co)
-
-                   ! put them together with the rest of the atoms
-                   idx(nroot+1:) = 0
-                   idx(nroot+1:nn) = iatidx(co,j,i)
-
-                   ! run least squares and calculate wrms
-                   call lsqr(nn,idx(1:nn),coef,y)
-                   wrms = sqrt(sum((y-ywtarget)**2))
-                   norm = sqrt(sum(coef(1:nn)**2)) * coef0
-                   acoef = maxval(abs(coef(1:nn))) * coef0
-                   if (imaxenergy(1) > 0) then
-                      call energy_contrib(nn,idx(1:nn),coef(1:nn),imaxenergy,aene)
-                   else
-                      aene = 0d0
-                   end if
-
-                   ! check the maxcoef conditions
-                   ok = .true.
-                   do m = 1, nn
-                      ok = ok .and. abs(coef(m) * coef0) < maxcoef(col(idx(m))%iexp,col(idx(m))%l,col(idx(m))%iatom)
-                   end do
-
-                   ! apply the discard criteria; save minimum wrms
-                   if (ok .and. wrms < minwrms2 .and. norm < maxnorm .and. all(aene < maxenergy)) then
-                      !$omp critical (save)
-                      idxsave2 = idx(nroot+1:nn)
-                      minwrms2 = wrms
-                      minnorm2 = norm
-                      minacoef2 = acoef
-                      minene2 = aene
-                      !$omp end critical (save)
-                   end if
+                ! check the maxcoef conditions
+                ok = .true.
+                do m = 1, nn
+                   ok = ok .and. abs(coef(m) * coef0) < maxcoef(col(idx(m))%iexp,col(idx(m))%l,col(idx(m))%iatom)
                 end do
-                !$omp end parallel do
 
-                ! write down the new combination, if lower than the old one
-                if (minwrms2 < minwrms) then
-                   saved = .true.
-                   minwrms = minwrms2
-                   minnorm = minnorm2
-                   minacoef = minacoef2
-                   minene = minene2 
-                   if (allocated(idxsave)) deallocate(idxsave)
-                   allocate(idxsave(size(idxsave2,1)))
-                   idxsave = idxsave2
+                ! apply the discard criteria; save minimum wrms
+                if (ok .and. wrms < minwrms2 .and. norm < maxnorm .and. all(aene < maxenergy)) then
+                   !$omp critical (save)
+                   idxsave2 = idx(nroot+1:nn)
+                   minwrms2 = wrms
+                   minnorm2 = norm
+                   minacoef2 = acoef
+                   minene2 = aene
+                   !$omp end critical (save)
                 end if
              end do
+             !$omp end parallel do
 
-             ! process minwrms; only update if we found at least one
-             ! successful combination
-             if (saved) then
-                ! increase nsame if the new indices are the same as the old ones
-                k = size(idxsave,1)
-                lupdate = (k /= nidx0(j,i))
-                if (.not.lupdate) &
-                   lupdate = any(idx0(1:k,j,i) /= idxsave)
-                
-                if (lupdate) then
-                   nsame = 1
-                   nidx0(j,i) = k
-                   idx0(1:k,j,i) = idxsave
-                else
-                   nsame = nsame + 1
-                end if
+             ! write down the new combination, if lower than the old one
+             if (minwrms2 < minwrms) then
+                saved = .true.
+                minwrms = minwrms2
+                minnorm = minnorm2
+                minacoef = minacoef2
+                minene = minene2 
+                if (allocated(idxsave)) deallocate(idxsave)
+                allocate(idxsave(size(idxsave2,1)))
+                idxsave = idxsave2
+             end if
+          end do
+
+          ! process minwrms; only update if we found at least one
+          ! successful combination
+          if (saved) then
+             ! increase nsame if the new indices are the same as the old ones
+             k = size(idxsave,1)
+             lupdate = (k /= nidx0(j,i))
+             if (.not.lupdate) &
+                lupdate = any(idx0(1:k,j,i) /= idxsave)
+
+             if (lupdate) then
+                nsame = 1
+                nidx0(j,i) = k
+                idx0(1:k,j,i) = idxsave
              else
                 nsame = nsame + 1
              end if
-             
-             ! some output
-             do k = 1, natoms
-                do l = 1, lmax(k)
-                   str = ""
-                   do m = 1, nidx0(l,k)
-                      id = idx0(m,l,k)
-                      if (id > 0) then
-                         aux =  string(id,4,ioj_left) // "(" // string(col(id)%atom) // &
-                            "," // string(lname(col(id)%l)) // "," // string(col(id)%n) // &
-                            "," // trim(string(col(id)%eexp,'f',10,4,ioj_left)) // ")"
-                         aux2 = str // "  " // string(aux,20,ioj_left)
-                         str = aux2
-                      end if
-                   end do
-                   if (len_trim(str) > 0) &
-                      write (uout,'(2X,A,2X)') str
+          else
+             nsame = nsame + 1
+          end if
+
+          ! some output
+          do k = 1, natoms
+             do l = 1, lmax(k)
+                str = ""
+                do m = 1, nidx0(l,k)
+                   id = idx0(m,l,k)
+                   if (id > 0) then
+                      aux =  string(id,4,ioj_left) // "(" // string(col(id)%atom) // &
+                         "," // string(lname(col(id)%l)) // "," // string(col(id)%n) // &
+                         "," // trim(string(col(id)%eexp,'f',10,4,ioj_left)) // ")"
+                      aux2 = str // "  " // string(aux,20,ioj_left)
+                      str = aux2
+                   end if
                 end do
+                if (len_trim(str) > 0) &
+                   write (uout,'(2X,A,2X)') str
              end do
-             write (uout,'("  wrms    = ",A)') string(minwrms,'f',14,8)
-             write (uout,'("  norm    = ",A)') string(minnorm,'f',14,8)
-             write (uout,'("  maxcoef = ",A)') string(minacoef,'f',14,8)
-             write (uout,'("  maxene  = ",5(A,X))') (string(minene(k),'f',14,8),k=1,size(imaxenergy,1))
-             write (uout,'("  nsame   = ",A)') string(nsame)
-             
-             ! exit when we're done
-             if (nsame == nsame0) exit main
           end do
+          write (uout,'("  wrms    = ",A)') string(minwrms,'f',14,8)
+          write (uout,'("  norm    = ",A)') string(minnorm,'f',14,8)
+          write (uout,'("  maxcoef = ",A)') string(minacoef,'f',14,8)
+          write (uout,'("  maxene  = ",5(A,X))') (string(minene(k),'f',14,8),k=1,size(imaxenergy,1))
+          write (uout,'("  nsame   = ",A)') string(nsame)
+
+          ! exit when we're done
+          if (nsame == nord) exit main
           write (uout,*)
        end do
     end do main

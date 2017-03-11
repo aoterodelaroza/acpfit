@@ -394,7 +394,7 @@ contains
 
   ! read and parse input
   subroutine global_input(nefilesi,efilei,imode,ifit_n,fit_maxnorm,fit_maxcoef,&
-     fit_maxenergy,imaxenergy,minl,maxl,ltop)
+     fit_maxenergy,imaxenergy,minl,maxl,ltop,seq)
     use tools_io, only: uin, getline, lgetword, equal, getword, faterr, ferror,&
        isinteger, isreal
     use types, only: realloc
@@ -409,9 +409,10 @@ contains
     integer, intent(inout) :: minl(30)
     integer, intent(inout) :: maxl(30)
     integer, intent(inout), allocatable :: ltop(:,:)
+    integer, intent(inout), allocatable :: seq(:,:)
 
     character(len=:), allocatable :: word, line, subline, aux
-    integer :: natoms_ang, lp, idum, i, idx, lp2, n, iat, il
+    integer :: natoms_ang, lp, idum, i, j, idx, lp2, n, iat, il
     real*8 :: rdum
     logical :: ok
 
@@ -580,6 +581,14 @@ contains
           fit_maxcoef = huge(1d0)
           allocate(ltop(maxlmax,natoms))
           ltop = nexp
+          allocate(seq(maxlmax,natoms))
+          n = 0 
+          do i = 1, natoms
+             do j = 1, lmax(i)
+                n = n + 1
+                seq(j,i) = n
+             end do
+          end do
 
           word = lgetword(line,lp)
           if (equal(word,'fit').or.equal(word,'fitl')) then
@@ -663,6 +672,7 @@ contains
                       end do
                       call realloc(lmax,natoms_ang)
                    elseif (equal(word,'ltop')) then
+                      ! LTOP [at.s l.s lmax.i] ...
                       do while (.true.)
                          lp2 = lp
                          word = getword(line,lp)
@@ -677,6 +687,30 @@ contains
                          if (il == 0 .or..not.ok) & 
                             call ferror("acpfit","wrong syntax in LTOP keyword",faterr)
                          ltop(il,iat) = idum
+                      end do
+                   elseif (equal(word,'sequence')) then
+                      seq = -1
+                      n = 0
+                      do while (.true.)
+                         lp2 = lp
+                         word = getword(line,lp)
+                         iat = whichatom(word)
+                         if (iat == 0) then
+                            lp = lp2
+                            exit
+                         end if
+                         word = getword(line,lp)
+                         il = whichl(word)
+                         if (il == 0) & 
+                            call ferror("acpfit","wrong syntax in SEQUENCE keyword",faterr)
+                         n = n + 1
+                         seq(il,iat) = n
+                      end do
+                      do i = 1, natoms
+                         do j = 1, lmax(i)
+                            if (seq(j,i) == -1) &
+                               call ferror("acpfit","missing atom/channel in SEQUENCE: " // trim(atom(i)) // "/" // lname(j),faterr)
+                         end do
                       end do
                    elseif (len_trim(word) > 0) then
                       call ferror("acpfit","unknown RUN FIT keyword: " // word,faterr)
@@ -723,6 +757,8 @@ contains
     integer :: i
     character(len=:), allocatable :: at0, at1
 
+    whichatom = 0
+    if (len_trim(at) < 1) return
     at0 = lower(trim(adjustl(at)))
     if (at0(1:1) == "-") then
        at1 = at0(2:)
@@ -730,7 +766,6 @@ contains
        at1 = at0
     endif
 
-    whichatom = 0
     do i = 1, natoms
        if (equal(lower(trim(atom(i))),at1)) then
           whichatom = i
