@@ -394,7 +394,7 @@ contains
 
   ! read and parse input
   subroutine global_input(nefilesi,efilei,imode,ifit_n,fit_maxnorm,fit_maxcoef,&
-     fit_maxenergy,imaxenergy,minl,maxl)
+     fit_maxenergy,imaxenergy,minl,maxl,ltop)
     use tools_io, only: uin, getline, lgetword, equal, getword, faterr, ferror,&
        isinteger, isreal
     use types, only: realloc
@@ -408,9 +408,10 @@ contains
     integer, allocatable, intent(inout) :: imaxenergy(:)
     integer, intent(inout) :: minl(30)
     integer, intent(inout) :: maxl(30)
+    integer, intent(inout), allocatable :: ltop(:,:)
 
     character(len=:), allocatable :: word, line, subline, aux
-    integer :: natoms_ang, lp, idum, i, idx, lp2, n
+    integer :: natoms_ang, lp, idum, i, idx, lp2, n, iat, il
     real*8 :: rdum
     logical :: ok
 
@@ -566,7 +567,7 @@ contains
           end if
        elseif (equal(word,'run')) then
           ! RUN ...
-          ! allocate maxcoef array          
+          ! allocate arrays and check we have the basic information
           if (natoms == 0) &
              call ferror("acpfit","missing ATOM keyword",faterr)
           if (any(lmax < 0)) &
@@ -577,6 +578,8 @@ contains
           if (allocated(fit_maxcoef)) deallocate(fit_maxcoef)
           allocate(fit_maxcoef(nexp,maxlmax,natoms))
           fit_maxcoef = huge(1d0)
+          allocate(ltop(maxlmax,natoms))
+          ltop = nexp
 
           word = lgetword(line,lp)
           if (equal(word,'fit').or.equal(word,'fitl')) then
@@ -659,6 +662,22 @@ contains
                          end if
                       end do
                       call realloc(lmax,natoms_ang)
+                   elseif (equal(word,'ltop')) then
+                      do while (.true.)
+                         lp2 = lp
+                         word = getword(line,lp)
+                         iat = whichatom(word)
+                         if (iat == 0) then
+                            lp = lp2
+                            exit
+                         end if
+                         word = getword(line,lp)
+                         il = whichl(word)
+                         ok = isinteger(idum,line,lp)
+                         if (il == 0 .or..not.ok) & 
+                            call ferror("acpfit","wrong syntax in LTOP keyword",faterr)
+                         ltop(il,iat) = idum
+                      end do
                    elseif (len_trim(word) > 0) then
                       call ferror("acpfit","unknown RUN FIT keyword: " // word,faterr)
                    else

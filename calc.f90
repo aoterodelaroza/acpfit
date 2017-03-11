@@ -307,7 +307,7 @@ contains
   ! atom, select the combination of nuse terms that minimizes the error
   ! subject to the maximum norm (maxnorm) and/or maximum absolute coefficient
   ! (maxcoef) constraints.
-  subroutine runfitl(maxnorm,maxcoef,maxenergy,imaxenergy,outeval,outacp)
+  subroutine runfitl(maxnorm,maxcoef,maxenergy,imaxenergy,ltop,outeval,outacp)
     use global, only: ncols, nfitw, nfit, global_printeval, x, global_printacp, natoms,&
        atom, maxlmax, lmax, nexp, w, ywtarget, coef0, col, lname
     use types, only: stats, realloc
@@ -317,6 +317,7 @@ contains
     real*8, intent(in) :: maxcoef(:,:,:)
     real*8, intent(in) :: maxenergy(:)
     integer, intent(in) :: imaxenergy(:)
+    integer, intent(in) :: ltop(:,:)
     character*(*), intent(in) :: outeval
     character*(*), intent(in) :: outacp
 
@@ -413,7 +414,7 @@ contains
 
              saved = .false.
              ! run over all possible number of terms for this channel
-             do k = 1, nexp
+             do k = 1, min(ltop(j,i),nexp)
                 ! allocate the combination array
                 if (allocated(co)) deallocate(co)
                 allocate(co(k))
