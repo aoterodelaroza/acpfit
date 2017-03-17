@@ -582,6 +582,7 @@ contains
           allocate(ltop(maxlmax,natoms))
           ltop = nexp
           allocate(seq(maxlmax,natoms))
+          seq = -1
           n = 0 
           do i = 1, natoms
              do j = 1, lmax(i)
