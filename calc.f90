@@ -18,22 +18,23 @@ module calc
 contains
   
   ! calculate the statistics for a given evaluation
-  subroutine calc_stats(y,stat,coef)
+  subroutine calc_stats(y,stat,coef,c0)
     use types, only: stats
     use global, only: nfit, w, nset, ytarget, &
-       iset_ini, iset_step, iset_n, coef0
+       iset_ini, iset_step, iset_n
 
     real*8, intent(in) :: y(:) ! results of the fit (no dispersion)
     type(stats), intent(inout) :: stat ! statistics of the fit
     real*8, intent(in), optional :: coef(:) ! coefficients
+    real*8, intent(in), optional :: c0(:) ! coefficients
 
     integer :: i, j, id
     real*8 :: dy(nfit)
 
     ! write down some constants
     if (present(coef)) then
-       stat%norm = sqrt(sum(coef**2)) * coef0
-       stat%maxcoef = maxval(abs(coef)) * coef0
+       stat%norm = sqrt(sum((coef*c0)**2))
+       stat%maxcoef = maxval(abs(coef*c0))
     else
        stat%norm = 0d0
        stat%maxcoef = 0d0
@@ -72,7 +73,8 @@ contains
 
   ! Fit the ACP with all possible terms. Good for testing.
   subroutine runfit_inf(outeval,outacp)
-    use global, only: ncols, nfitw, nfit, global_printeval, x, global_printacp
+    use global, only: ncols, nfitw, nfit, global_printeval, x, global_printacp, col,&
+       coef0
     use types, only: stats
     use tools_io, only: uout, faterr, ferror, string
     
@@ -80,7 +82,7 @@ contains
     character*(*), intent(in) :: outacp
 
     integer :: idx(ncols), i
-    real*8 :: coef(nfitw), y(nfit)
+    real*8 :: coef(nfitw), c0(nfitw), y(nfit)
     type(stats) :: stat
 
     ! header
@@ -93,6 +95,7 @@ contains
     idx = 0
     do i = 1, ncols
        idx(i) = i
+       c0(i) = coef0(col(i)%iexp,col(i)%l,col(i)%iatom)
     end do
 
     ! run least squares
@@ -100,7 +103,7 @@ contains
     y = matmul(x(:,idx),coef(1:ncols))
 
     ! print stats and evaluation
-    call calc_stats(y,stat,coef(1:ncols))
+    call calc_stats(y,stat,coef(1:ncols),c0(1:ncols))
     call global_printeval("final",y,stat,outeval)
     
     ! print resulting acp
@@ -130,7 +133,7 @@ contains
 
     character(len=:), allocatable :: str, aux, aux2
     integer :: i, j, k, ncyc, n1, n2, nanuse, nanz, nsame, id
-    real*8 :: coef(nfitw), y(nfitw), y0(nfit), wrms, minwrms, norm, minnorm
+    real*8 :: coef(nfitw), c0(nfitw), y(nfitw), y0(nfit), wrms, minwrms, norm, minnorm
     real*8 :: acoef, minacoef, aene(size(imaxenergy,1)), minene(size(imaxenergy,1))
     type(stats) :: stat
     integer, allocatable :: iatidx(:,:), natidx(:), lidx(:,:)
@@ -140,12 +143,6 @@ contains
 
     ! header
     write (uout,'("+ Generating ACP using atom iterations, with ",A," terms per atom")') string(nuse)
-    if (maxnorm < huge(1d0)) &
-       write (uout,'("  Maximum norm: ",A)') string(maxnorm,'f',12,6)
-    if (imaxenergy(1) > 0) &
-       write (uout,'("  Maximum abs(ene): ",5(A,X))') (string(maxenergy(j),'f',12,6),j=1,size(maxenergy,1))
-    if (any(maxcoef < huge(1d0))) &
-       write (uout,'("  Maximum abs(coef) constraint: ",A)') string(maxval(abs(maxcoef),maxcoef < huge(1d0)),'f',12,6)
     write (uout,*)
 
     ! some dimensions
@@ -205,7 +202,7 @@ contains
           
           ! Run over all the combinations. To save memory and allow
           ! parallelization, use Buckles' algorithm.
-          !$omp parallel do private(coef,y,wrms,norm,acoef,co,aene,ll,ok) firstprivate(idx) schedule(dynamic)
+          !$omp parallel do private(coef,c0,y,wrms,norm,acoef,co,aene,ll,ok) firstprivate(idx) schedule(dynamic)
           do j = 1, binom(natidx(i),nuse)
              ! get the indices for this combination
              call comb(natidx(i),nuse,j,co)
@@ -221,11 +218,16 @@ contains
              ! put them together with the rest of the atoms
              idx(nuse*(i-1)+1:nuse*i) = iatidx(co,i)
              
+             ! prepare the c0
+             do k = 1, nanz
+                c0(k) = coef0(col(idx(k))%iexp,col(idx(k))%l,col(idx(k))%iatom)
+             end do
+
              ! run least squares and calculate wrms
              call lsqr(nanz,idx(1:nanz),coef,y)
              wrms = sqrt(sum((y-ywtarget)**2))
-             norm = sqrt(sum(coef(1:nanz)**2)) * coef0
-             acoef = maxval(abs(coef(1:nanz))) * coef0
+             norm = sqrt(sum((coef(1:nanz) * c0(1:nanz))**2))
+             acoef = maxval(abs(coef(1:nanz) * c0(1:nanz)))
              if (imaxenergy(1) > 0) then
                 call energy_contrib(nanz,idx(1:nanz),coef(1:nanz),imaxenergy,aene)
              else
@@ -235,7 +237,7 @@ contains
              ! check the maxcoef conditions
              ok = .true.
              do k = 1, nanz
-                ok = ok .and. abs(coef(k) * coef0) < maxcoef(col(idx(k))%iexp,col(idx(k))%l,col(idx(k))%iatom)
+                ok = ok .and. abs(coef(k) * c0(k)) < maxcoef(col(idx(k))%iexp,col(idx(k))%l,col(idx(k))%iatom)
              end do
 
              ! apply the discard criteria; save minimum wrms
@@ -294,8 +296,13 @@ contains
     call lsqr(nanuse,idx0,coef)
     y0 = matmul(x(:,idx0),coef(1:nanuse))
 
+    ! prepare the c0
+    do k = 1, nanuse
+       c0(k) = coef0(col(idx0(k))%iexp,col(idx0(k))%l,col(idx0(k))%iatom)
+    end do
+
     ! print stats and evaluation
-    call calc_stats(y0,stat,coef(1:nanuse))
+    call calc_stats(y0,stat,coef(1:nanuse),c0(1:nanuse))
     call global_printeval("final",y0,stat,outeval)
     
     ! print resulting acp
@@ -323,7 +330,7 @@ contains
     character*(*), intent(in) :: outacp
 
     integer :: i, j, k, l, m, n1, ncyc, nsame, nsame0
-    real*8 :: coef(nfitw), y0(nfit), y(nfitw)
+    real*8 :: coef(nfitw), c0(nfitw), y0(nfit), y(nfitw)
     character(len=:), allocatable :: str, aux, aux2
     real*8 :: wrms, norm, acoef, aene(size(imaxenergy,1))
     real*8 :: minene(size(imaxenergy,1)), minene2(size(imaxenergy,1))
@@ -338,12 +345,6 @@ contains
 
     ! header
     write (uout,'("+ Generating ACP using channel + atom iterations")') 
-    if (maxnorm < huge(1d0)) &
-       write (uout,'("  Maximum norm: ",A)') string(maxnorm,'f',12,6)
-    if (imaxenergy(1) > 0) &
-       write (uout,'("  Maximum abs(ene): ",5(A,X))') (string(maxenergy(j),'f',12,6),j=1,size(maxenergy,1))
-    if (any(maxcoef < huge(1d0))) &
-       write (uout,'("  Maximum abs(coef) constraint: ",A)') string(maxval(abs(maxcoef),maxcoef < huge(1d0)),'f',12,6)
     write (uout,*)
 
     ! check the maxenergy
@@ -447,7 +448,7 @@ contains
              idxsave2 = 0
 
              ! Run over all the combinations with this number of terms
-             !$omp parallel do private(coef,y,wrms,norm,acoef,aene,ok) firstprivate(co,idx)
+             !$omp parallel do private(coef,c0,y,wrms,norm,acoef,aene,ok) firstprivate(co,idx)
              do l = 1, binom(nexp,k)
                 ! get the indices for this combination
                 call comb(nexp,k,l,co)
@@ -456,11 +457,16 @@ contains
                 idx(nroot+1:) = 0
                 idx(nroot+1:nn) = iatidx(co,j,i)
 
+                ! prepare the c0
+                do m = 1, nn
+                   c0(m) = coef0(col(idx(m))%iexp,col(idx(m))%l,col(idx(m))%iatom)
+                end do
+
                 ! run least squares and calculate wrms
                 call lsqr(nn,idx(1:nn),coef,y)
                 wrms = sqrt(sum((y-ywtarget)**2))
-                norm = sqrt(sum(coef(1:nn)**2)) * coef0
-                acoef = maxval(abs(coef(1:nn))) * coef0
+                norm = sqrt(sum((coef(1:nn) * c0(1:nn))**2))
+                acoef = maxval(abs(coef(1:nn) * c0(1:nn)))
                 if (imaxenergy(1) > 0) then
                    call energy_contrib(nn,idx(1:nn),coef(1:nn),imaxenergy,aene)
                 else
@@ -470,7 +476,7 @@ contains
                 ! check the maxcoef conditions
                 ok = .true.
                 do m = 1, nn
-                   ok = ok .and. abs(coef(m) * coef0) < maxcoef(col(idx(m))%iexp,col(idx(m))%l,col(idx(m))%iatom)
+                   ok = ok .and. abs(coef(m) * c0(m)) < maxcoef(col(idx(m))%iexp,col(idx(m))%l,col(idx(m))%iatom)
                 end do
 
                 ! apply the discard criteria; save minimum wrms
@@ -566,8 +572,13 @@ contains
     call lsqr(nn,idx(1:nn),coef)
     y0 = matmul(x(:,idx(1:nn)),coef(1:nn))
 
+    ! prepare the c0
+    do m = 1, nn
+       c0(m) = coef0(col(idx(m))%iexp,col(idx(m))%l,col(idx(m))%iatom)
+    end do
+
     ! print stats and evaluation
-    call calc_stats(y0,stat,coef(1:nn))
+    call calc_stats(y0,stat,coef(1:nn),c0(1:nn))
     call global_printeval("final",y0,stat,outeval)
     
     ! print resulting acp
@@ -578,7 +589,7 @@ contains
   ! Find the least-squares ACP with the user-provided ACP terms.
   subroutine runfit_manual(outeval,outacp)
     use global, only: natoms, ncols, col, lname, nfitw, x, nfit, global_printeval,&
-       global_printacp
+       global_printacp, coef0
     use tools_io, only: uin, getline, lgetword, equal, isinteger, isreal, &
        ferror, faterr, lower, string
     use types, only: realloc, stats
@@ -589,7 +600,7 @@ contains
     integer, allocatable :: idx(:)
     character(len=:), allocatable :: word, line, lstr
     logical :: ok
-    real*8 :: rinp, coef(nfitw), y(nfit)
+    real*8 :: rinp, coef(nfitw), c0(nfitw), y(nfit)
     type(stats) :: stat
 
     ! initialize
@@ -636,8 +647,13 @@ contains
     call lsqr(n,idx,coef)
     y = matmul(x(:,idx),coef(1:n))
 
+    ! prepare the c0
+    do i = 1, n
+       c0(i) = coef0(col(idx(i))%iexp,col(idx(i))%l,col(idx(i))%iatom)
+    end do
+
     ! print stats and evaluation
-    call calc_stats(y,stat,coef(1:n))
+    call calc_stats(y,stat,coef(1:n),c0(1:n))
     call global_printeval("final",y,stat,outeval)
     
     ! print resulting acp
@@ -659,7 +675,7 @@ contains
     character(len=:), allocatable :: word, line, lstr
     logical :: ok
     real*8 :: rinp, y(nfit), r2inp
-    real*8, allocatable :: coef(:)
+    real*8, allocatable :: coef(:), c0(:)
     type(stats) :: stat
 
     ! initialize
@@ -692,7 +708,7 @@ contains
                    call realloc(coef,2*n)
                 end if
                 idx(n) = i
-                coef(n) = r2inp / coef0
+                coef(n) = r2inp / coef0(col(i)%iexp,col(i)%l,col(i)%iatom)
                 ok = .true.
                 exit
              end if
@@ -711,8 +727,14 @@ contains
     ! evaluate
     y = matmul(x(:,idx),coef(1:n))
 
+    ! prepare the c0
+    allocate(c0(n))
+    do i = 1, n
+       c0(i) = coef0(col(idx(i))%iexp,col(idx(i))%l,col(idx(i))%iatom)
+    end do
+
     ! print stats and evaluation
-    call calc_stats(y,stat,coef(1:n))
+    call calc_stats(y,stat,coef(1:n),c0(1:n))
     call global_printeval("final",y,stat,outeval)
     
   end subroutine runeval_input
@@ -720,7 +742,7 @@ contains
   ! Evaluate a given ACP using the current data. From an external file.
   subroutine runeval_file(outeval,inacp)
     use global, only: natoms, lname, x, nfit, global_printeval,&
-       global_printacp, coef0, whichatom, whichcol
+       global_printacp, coef0, whichatom, whichcol, whichexp, col
     use tools_io, only: getline, lgetword, equal, isinteger, isreal, &
        ferror, faterr, lower, string, fopen_read, fclose
     use types, only: realloc, stats
@@ -733,9 +755,9 @@ contains
     character(len=:), allocatable :: word, line
     logical :: ok
     real*8 :: y(nfit)
-    real*8, allocatable :: coef(:)
+    real*8, allocatable :: coef(:), c0(:)
     type(stats) :: stat
-    integer :: idum
+    integer :: idum, i
     real*8 :: rdum1, rdum2
 
     ! initialize
@@ -797,7 +819,7 @@ contains
              idx(n) = whichcol(iatom,iang,idum,rdum1)
              if (idx(n) == 0) &
                 call ferror("runeval_file","No data found for term: "//trim(line),faterr)
-             coef(n) = rdum2 / coef0
+             coef(n) = rdum2 / coef0(whichexp(idum,rdum1),iang,iatom)
           end do
        end do
     end do
@@ -812,8 +834,14 @@ contains
     ! evaluate
     y = matmul(x(:,idx),coef(1:n))
 
+    ! prepare the c0
+    allocate(c0(n))
+    do i = 1, n
+       c0(i) = coef0(col(idx(i))%iexp,col(idx(i))%l,col(idx(i))%iatom)
+    end do
+
     ! print stats and evaluation
-    call calc_stats(y,stat,coef(1:n))
+    call calc_stats(y,stat,coef(1:n),c0(1:n))
     call global_printeval("final",y,stat,outeval)
     
   end subroutine runeval_file
@@ -822,7 +850,7 @@ contains
   ! give the same average contribution to the wrms over the whole set.
   subroutine runtest(outeval,outacp)
     use global, only: ncols, nfitw, global_printeval, global_printacp, w, yempty, &
-       yref, x, nfit
+       yref, x, nfit, coef0, col
     use types, only: stats
     use tools_io, only: uout, faterr, ferror, string
     
@@ -830,7 +858,7 @@ contains
     character*(*), intent(in) :: outacp
 
     integer :: idx(ncols), i
-    real*8 :: coef(ncols), wmae0, y(nfit)
+    real*8 :: coef(ncols), c0(ncols), wmae0, y(nfit)
     type(stats) :: stat
 
     ! header
@@ -853,13 +881,14 @@ contains
     ! find the coefficients
     do i = 1, ncols
        coef(i) = wmae0 / (sum(w * abs(x(:,i))) / sum(w))
+       c0(i) = coef0(col(i)%iexp,col(i)%l,col(i)%iatom)
     end do
 
     ! run least squares
     y = matmul(x(:,idx),coef(1:ncols))
 
     ! print stats and evaluation
-    call calc_stats(y,stat,coef(1:ncols))
+    call calc_stats(y,stat,coef(1:ncols),c0(1:ncols))
     call global_printeval("final",y,stat,outeval)
     
     ! print resulting acp

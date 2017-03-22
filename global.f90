@@ -31,7 +31,7 @@ module global
   public :: whichl
   public :: whichcol
   public :: whichexp
-  private :: readmaxcoef
+  private :: readcfile
 
   ! file prefix
   character(len=:), allocatable :: fileroot !< file prefix
@@ -42,7 +42,7 @@ module global
   character*2, allocatable :: atom(:) !< atomic symbols
   integer, allocatable :: lmax(:) !< maximum angular momentum for each atom
   integer :: maxlmax !< maximum lmax
-  real*8 :: coef0 !< coefficients with which the ACP terms were evaluated
+  real*8, allocatable :: coef0(:,:,:) !< coefficients with which the ACP terms were evaluated
 
   ! list of exponents and n-values
   integer :: nexp !< number of exponents
@@ -117,7 +117,6 @@ contains
     nsubfiles = 0
     nfit = 0
     nset = 0
-    coef0 = 1d-3
     if (allocated(atom)) deallocate(atom)
     if (allocated(lmax)) deallocate(lmax)
     if (allocated(nval)) deallocate(nval)
@@ -182,10 +181,15 @@ contains
   end subroutine global_check
 
   !> Write information about the output data to the output
-  subroutine global_printinfo()
+  subroutine global_printinfo(maxnorm,maxcoef,maxenergy,imaxenergy)
     use tools_io, only: string, ioj_left, uout
+    real*8, intent(in) :: maxnorm
+    real*8, intent(in) :: maxcoef(:,:,:)
+    real*8, intent(in) :: maxenergy(:)
+    integer, intent(in) :: imaxenergy(:)
 
-    integer :: i
+    integer :: i, j, k
+    character(len=:), allocatable :: str
 
     write (uout,'("+ Summary of input data")')
     write (uout,'("Number of atoms: ",A)') string(natoms)
@@ -207,7 +211,6 @@ contains
           string(iset_step(i),3), string(iset_label(i))
     end do
     write (uout,'("Number of columns: ",A)') string(ncols)
-    write (uout,'("Coefficent ACP term evaluation: ",A)') string(coef0,'f',12,6)
     write (uout,'("Data path: ",A)') string(datapath)
     write (uout,'("Names file: ",A)') string(namesfile)
     write (uout,'("Weight file: ",A)') string(wfile)
@@ -219,6 +222,31 @@ contains
           write (uout,'(2X,A,": ",A)') string(i), string(subfile(i))
        end do
     end if
+    if (maxnorm < huge(1d0)) then
+       write (uout,'("Maximum norm of the coefficients: ",A)') string(maxnorm,'f',12,8,4)
+    end if
+    if (imaxenergy(1) > 0) then
+       do i = 1, size(imaxenergy,1)
+          write (uout,'("Maximum energy for system ",A,": ",A)') string(imaxenergy(i)), &
+             string(maxenergy(i),'f',12,8,4)
+       end do
+    end if
+    write (uout,'("List of ACP terms: ")')
+    write (uout,'("# atom    ang     n/exp             c0          cmax")')
+    do i = 1, natoms
+       do j = 1, lmax(i)
+          do k = 1, nexp
+             if (maxcoef(k,j,i) < huge(1d0)) then
+                str = string(maxcoef(k,j,i),'f',12,8,4)                
+             else
+                str = "unconstrained"
+             end if
+             write (uout,'(2X,A," (",A,")   ",A,3X,A,"/",3(A,X))') string(atom(i),2), string(i),&
+                string(lname(j)), string(nval(k)), string(eexp(k),'f',12,8,ioj_left),&
+                string(coef0(k,j,i),'f',12,8,4), str
+          end do
+       end do
+    end do
     write (uout,*)
 
   end subroutine global_printinfo
@@ -381,7 +409,8 @@ contains
           write (lu,'(A)') string(n)
        end if
        write (lu,'(3(A,X))') string(col(id)%n), string(col(id)%eexp,'f',20,12),&
-          string(coef(i)*coef0,'f',20,12,6)
+          string(coef0(col(id)%iexp,col(id)%l,col(id)%iatom)*coef(i),'f',20,12,6)
+       
     end do
 
     if (doclose) then
@@ -411,9 +440,9 @@ contains
     integer, intent(inout), allocatable :: ltop(:,:)
     integer, intent(inout), allocatable :: seq(:,:)
 
-    character(len=:), allocatable :: word, line, subline, aux
+    character(len=:), allocatable :: word, line, subline, aux, coef0file
     integer :: natoms_ang, lp, idum, i, j, idx, lp2, n, iat, il
-    real*8 :: rdum
+    real*8 :: rdum, coef0all
     logical :: ok
 
     ! initialize
@@ -432,6 +461,8 @@ contains
     fit_maxenergy(1) = huge(1d0)
     minl = 0
     maxl = huge(1)
+    coef0all = -1d0
+    coef0file = ""
 
     ! parse the input
     do while (getline(uin,line))
@@ -497,7 +528,7 @@ contains
           call realloc(eexp,nexp)
        elseif (equal(word,'coef0')) then
           ! COEF0 coef0.r
-          ok = isreal(coef0,line,lp)
+          ok = isreal(coef0all,line,lp)
           if (.not.ok) &
              call ferror("acpfit","wrong COEF0 syntax",faterr)
        elseif (equal(word,'nfit')) then
@@ -536,6 +567,9 @@ contains
           elseif (equal(word,'names')) then
              ! FILE NAMES namesfile.s
              namesfile = trim(line(lp:))
+          elseif (equal(word,'coef0')) then
+             ! FILE COEF0 coef0file.s
+             coef0file = trim(line(lp:))
           elseif (equal(word,'sub')) then
              ! FILE SUB subfile.s
              nsubfiles = nsubfiles + 1
@@ -568,7 +602,7 @@ contains
           end if
        elseif (equal(word,'run')) then
           ! RUN ...
-          ! allocate arrays and check we have the basic information
+          ! check we have the basic information
           if (natoms == 0) &
              call ferror("acpfit","missing ATOM keyword",faterr)
           if (any(lmax < 0)) &
@@ -576,6 +610,8 @@ contains
           if (nexp == 0) &
              call ferror("acpfit","missing EXP keyword",faterr)
           maxlmax = maxval(lmax)
+
+          ! allocate arrays
           if (allocated(fit_maxcoef)) deallocate(fit_maxcoef)
           allocate(fit_maxcoef(nexp,maxlmax,natoms))
           fit_maxcoef = huge(1d0)
@@ -590,6 +626,15 @@ contains
                 seq(j,i) = n
              end do
           end do
+          if (allocated(coef0)) deallocate(coef0)
+          allocate(coef0(nexp,maxlmax,natoms))
+          if (len_trim(coef0file) > 0) then
+             call readcfile(trim(datapath) // coef0file,coef0)
+          elseif (coef0all < 0d0) then
+             coef0 = 0.001d0
+          else
+             coef0 = coef0all
+          end if
 
           word = lgetword(line,lp)
           if (equal(word,'fit').or.equal(word,'fitl')) then
@@ -634,7 +679,7 @@ contains
                       fit_maxcoef = abs(rdum)
                    elseif (equal(word,"maxcfile")) then
                       word = getword(line,lp)
-                      call readmaxcoef(word,fit_maxcoef)
+                      call readcfile(word,fit_maxcoef)
                    elseif (equal(word,"maxenergy")) then
                       n = 0
                       do while (.true.)
@@ -835,11 +880,11 @@ contains
   end function whichexp
 
   !> Read the maximum coefficient conditions from an external file
-  subroutine readmaxcoef(file,maxcoef)
+  subroutine readcfile(file,coef)
     use tools_io, only: ferror, faterr, fopen_read, fclose, getline, getword,&
        isreal, isinteger
     character*(*), intent(in) :: file
-    real*8, intent(inout), allocatable :: maxcoef(:,:,:)
+    real*8, intent(inout), allocatable :: coef(:,:,:)
 
     logical :: ok
     integer :: lu, lp, idum, iatom, il, iexp
@@ -848,7 +893,7 @@ contains
 
     inquire(file=file,exist=ok)
     if (.not.ok) &
-       call ferror("readmaxcoef","File not found: " // trim(file),faterr)
+       call ferror("readcfile","File not found: " // trim(file),faterr)
 
     lu = fopen_read(file)
     do while(getline(lu,line,.false.))    
@@ -864,15 +909,15 @@ contains
        iexp = whichexp(idum,rdum1)
        ok = ok .and. (iatom > 0) .and. (il > 0) .and. (iexp > 0)
        if (.not.ok) &
-          call ferror("readmaxcoef","Error reading coef file: " // trim(line),faterr)
+          call ferror("readcfile","Error reading coef file: " // trim(line),faterr)
 
-       if (iatom > size(maxcoef,3) .or. il > size(maxcoef,2) .or. iexp > size(maxcoef,1)) &
-          call ferror("readmaxcoef","Unknown atom/l/cofficient in: " // trim(line),faterr)
+       if (iatom > size(coef,3) .or. il > size(coef,2) .or. iexp > size(coef,1)) &
+          call ferror("readcfile","Unknown atom/l/cofficient in: " // trim(line),faterr)
 
-       maxcoef(iexp,il,iatom) = abs(rdum2)
+       coef(iexp,il,iatom) = abs(rdum2)
     end do
     call fclose(lu)
     
-  end subroutine readmaxcoef
+  end subroutine readcfile
 
 end module global

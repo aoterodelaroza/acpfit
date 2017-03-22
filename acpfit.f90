@@ -80,7 +80,7 @@ program acpfit
   iset_step(nset) = 1
 
   ! write the input data information
-  call global_printinfo()
+  call global_printinfo(fit_maxnorm,fit_maxcoef,fit_maxenergy,imaxenergy)
 
   ! read the information from the external files
   call readfiles()
