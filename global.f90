@@ -443,7 +443,7 @@ contains
     character(len=:), allocatable :: word, line, subline, aux, coef0file
     integer :: natoms_ang, lp, idum, i, j, idx, lp2, n, iat, il
     real*8 :: rdum, coef0all
-    logical :: ok
+    logical :: ok, isrun
 
     ! initialize
     natoms_ang = 0
@@ -463,6 +463,7 @@ contains
     maxl = huge(1)
     coef0all = -1d0
     coef0file = ""
+    isrun = .false.
 
     ! parse the input
     do while (getline(uin,line))
@@ -610,6 +611,7 @@ contains
           if (nexp == 0) &
              call ferror("acpfit","missing EXP keyword",faterr)
           maxlmax = maxval(lmax)
+          isrun = .true.
 
           ! allocate arrays
           if (allocated(fit_maxcoef)) deallocate(fit_maxcoef)
@@ -788,6 +790,8 @@ contains
           call ferror("acpfit","unknown keyword: " // word,faterr)
        end if
     end do
+    if (.not.isrun) &
+       call ferror("acpfit","run keyword not found",faterr)
 
     ! check the input data for sanity
     call global_check(natoms_ang)
