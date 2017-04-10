@@ -234,7 +234,7 @@ contains
        end do
     end if
     write (uout,'("List of ACP terms: ")')
-    write (uout,'("# atom    ang     n/exp             c0          cmax")')
+    write (uout,'("# atom    ang     n/exp             c0          cmax        datafile")')
     do i = 1, natoms
        do j = 1, lmax(i)
           do k = 1, nexp
@@ -243,9 +243,9 @@ contains
              else
                 str = "unconstrained"
              end if
-             write (uout,'(2X,A," (",A,")   ",A,3X,A,"/",3(A,X))') string(atom(i),2), string(i),&
+             write (uout,'(2X,A," (",A,")   ",A,3X,A,"/",4(A,X))') string(atom(i),2), string(i),&
                 string(lname(j)), string(nval(k)), string(eexp(k),'f',12,8,ioj_left),&
-                string(coef0(k,j,i),'f',12,8,4), str
+                string(coef0(k,j,i),'f',12,8,4), str, string(efile(i,j,k))
           end do
        end do
     end do
@@ -261,23 +261,28 @@ contains
     integer :: nnexp
     integer, allocatable :: nval_(:) 
     real*8, allocatable :: eexp_(:) 
+    character*255, allocatable :: efile_(:,:,:) 
 
     ! use the noexp to reallocate the exponential arrays
     nnexp = count(.not.noexp(1:nexp))
     allocate(nval_(nnexp))
     allocate(eexp_(nnexp))
+    allocate(efile_(natoms,maxlmax,nnexp))
     n = 0
     do i = 1, nexp
        if (.not.noexp(i)) then
           n = n + 1
           nval_(n) = nval(i)
           eexp_(n) = eexp(i)
+          efile_(:,:,n) = efile(:,:,i)
        end if
     end do
     deallocate(nval)
     deallocate(eexp)
+    deallocate(efile)
     call move_alloc(nval_,nval)
     call move_alloc(eexp_,eexp)
+    call move_alloc(efile_,efile)
     deallocate(noexp)
     nexp = nnexp
 

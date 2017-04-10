@@ -2,10 +2,10 @@
 FC = ifort
 #FCFLAGS = -g -CU -C -traceback -fpe0 -debug -openmp
 #LDFLAGS = -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -liomp5 -lpthread -openmp
-#FCFLAGS = -g -CU -C -traceback -fpe0 -debug
-#LDFLAGS = -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -liomp5 -lpthread
-FCFLAGS = -O3 -openmp
-LDFLAGS = -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -liomp5 -lpthread -openmp
+FCFLAGS = -g -CU -C -traceback -fpe0 -debug
+LDFLAGS = -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -liomp5 -lpthread
+#FCFLAGS = -O3 -openmp
+#LDFLAGS = -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -liomp5 -lpthread -openmp
 
 #### gfortran with static blas and lapack
 #FC = gfortran-6
