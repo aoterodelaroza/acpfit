@@ -65,7 +65,7 @@ program acpfit
   ! build the file names and process user input re specific energy term file names
   call makefilenames(nefilesi,efilei)
 
-  ! fill the column information
+  ! fill the column information and use the noexp to prune the exponent list
   call global_fillcol()
 
   ! add the "all" set

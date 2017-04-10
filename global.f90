@@ -48,6 +48,7 @@ module global
   integer :: nexp !< number of exponents
   integer, allocatable :: nval(:) !< n-value associated to the exponent
   real*8, allocatable :: eexp(:) !< exponent value
+  logical, allocatable :: noexp(:) !< discard these exponents
 
   ! fitting set, and subsets
   integer :: nfit !< number of systems in the fitting set
@@ -130,6 +131,7 @@ contains
     allocate(lmax(1))
     allocate(nval(1))
     allocate(eexp(1))
+    allocate(noexp(1))
     allocate(subfile(1))
     allocate(iset_label(1))
     allocate(iset_ini(1))
@@ -256,6 +258,28 @@ contains
   subroutine global_fillcol()
 
     integer :: i, j, k, n
+    integer :: nnexp
+    integer, allocatable :: nval_(:) 
+    real*8, allocatable :: eexp_(:) 
+
+    ! use the noexp to reallocate the exponential arrays
+    nnexp = count(.not.noexp(1:nexp))
+    allocate(nval_(nnexp))
+    allocate(eexp_(nnexp))
+    n = 0
+    do i = 1, nexp
+       if (.not.noexp(i)) then
+          n = n + 1
+          nval_(n) = nval(i)
+          eexp_(n) = eexp(i)
+       end if
+    end do
+    deallocate(nval)
+    deallocate(eexp)
+    call move_alloc(nval_,nval)
+    call move_alloc(eexp_,eexp)
+    deallocate(noexp)
+    nexp = nnexp
 
     ! number of columns
     ncols = 0
@@ -521,12 +545,32 @@ contains
              if (nexp > ubound(nval,1)) then
                 call realloc(nval,2*nexp)
                 call realloc(eexp,2*nexp)
+                call realloc(noexp,2*nexp)
              end if
              nval(nexp) = idum
              eexp(nexp) = rdum
+             noexp(nexp) = .false.
           end do
           call realloc(nval,nexp)
           call realloc(eexp,nexp)
+          call realloc(noexp,nexp)
+       elseif (equal(word,'noexp')) then
+          ! NOEXP n.i exp1.r exp2.r ...
+          if (nexp == 0) &
+             call ferror("acpfit","need EXP before NOEXP",faterr)
+          ok = isinteger(idum,line,lp)
+          if (.not.ok) &
+             call ferror("acpfit","wrong syntax in EXP",faterr)
+
+          do while (.true.)
+             ok = isreal(rdum,line,lp)
+             if (.not.ok) exit
+             idx = whichexp(idum,rdum)
+             if (idx == 0) &
+                call ferror("acpfit","exponent not found in NOEXP",faterr)
+             noexp(idx) = .true.
+          end do
+
        elseif (equal(word,'coef0')) then
           ! COEF0 coef0.r
           ok = isreal(coef0all,line,lp)
