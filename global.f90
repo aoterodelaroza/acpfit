@@ -255,19 +255,25 @@ contains
 
   !> Fill the information in the column variable and ncols based on
   !> the input data.
-  subroutine global_fillcol()
+  subroutine global_fillcol(maxcoef)
+    real*8, intent(inout), allocatable :: maxcoef(:,:,:) 
 
     integer :: i, j, k, n
     integer :: nnexp
     integer, allocatable :: nval_(:) 
     real*8, allocatable :: eexp_(:) 
     character*255, allocatable :: efile_(:,:,:) 
+    real*8, allocatable :: coef0_(:,:,:) 
+    real*8, allocatable :: maxcoef_(:,:,:) 
 
     ! use the noexp to reallocate the exponential arrays
+    ! ltop does not need to be updated because nnexp <= nexp
     nnexp = count(.not.noexp(1:nexp))
     allocate(nval_(nnexp))
     allocate(eexp_(nnexp))
     allocate(efile_(natoms,maxlmax,nnexp))
+    allocate(coef0_(nnexp,maxlmax,natoms))
+    allocate(maxcoef_(nnexp,maxlmax,natoms))
     n = 0
     do i = 1, nexp
        if (.not.noexp(i)) then
@@ -275,14 +281,20 @@ contains
           nval_(n) = nval(i)
           eexp_(n) = eexp(i)
           efile_(:,:,n) = efile(:,:,i)
+          coef0_(n,:,:) = coef0(i,:,:)
+          maxcoef_(n,:,:) = maxcoef(i,:,:)
        end if
     end do
     deallocate(nval)
     deallocate(eexp)
     deallocate(efile)
+    deallocate(coef0)
+    deallocate(maxcoef)
     call move_alloc(nval_,nval)
     call move_alloc(eexp_,eexp)
     call move_alloc(efile_,efile)
+    call move_alloc(coef0_,coef0)
+    call move_alloc(maxcoef_,maxcoef)
     deallocate(noexp)
     nexp = nnexp
 

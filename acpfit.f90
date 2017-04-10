@@ -66,7 +66,7 @@ program acpfit
   call makefilenames(nefilesi,efilei)
 
   ! fill the column information and use the noexp to prune the exponent list
-  call global_fillcol()
+  call global_fillcol(fit_maxcoef)
 
   ! add the "all" set
   nset = nset + 1
