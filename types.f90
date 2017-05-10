@@ -57,6 +57,7 @@ module types
      integer :: nset ! number of subsets
      real*8, allocatable :: rms(:) ! rms for each of the subsets
      real*8, allocatable :: mae(:) ! mae for each of the subsets
+     real*8, allocatable :: mse(:) ! mse for each of the subsets
   end type stats
 
 contains

@@ -51,8 +51,10 @@ contains
     ! allocate rms and mae
     if (allocated(stat%rms)) deallocate(stat%rms)
     if (allocated(stat%mae)) deallocate(stat%mae)
+    if (allocated(stat%mse)) deallocate(stat%mse)
     allocate(stat%rms(nset))
     allocate(stat%mae(nset))
+    allocate(stat%mse(nset))
 
     ! calculate rms and mae for all sets
     dy = y - ytarget
@@ -60,13 +62,16 @@ contains
        id = iset_ini(i) - iset_step(i)
        stat%rms(i) = 0d0
        stat%mae(i) = 0d0
+       stat%mse(i) = 0d0
        do j = 1, iset_n(i)
           id = id + iset_step(i)
           stat%rms(i) = stat%rms(i) + (dy(id))**2
           stat%mae(i) = stat%mae(i) + abs(dy(id))
+          stat%mse(i) = stat%mse(i) + dy(id)
        end do
        stat%rms(i) = sqrt(stat%rms(i) / iset_n(i))
        stat%mae(i) = stat%mae(i) / iset_n(i)
+       stat%mse(i) = stat%mse(i) / iset_n(i)
     end do
 
   end subroutine calc_stats
