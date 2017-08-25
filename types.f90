@@ -51,7 +51,8 @@ module types
 
   ! statistics for an evaluation
   type stats
-     real*8 :: norm ! norm of the coefficients
+     real*8 :: norm ! 2-norm of the coefficients
+     real*8 :: norm1 ! 1-norm of the coefficients
      real*8 :: maxcoef ! maximum absolute value of the coefficients
      real*8 :: wrms ! wrms for the fit
      integer :: nset ! number of subsets

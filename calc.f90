@@ -34,9 +34,11 @@ contains
     ! write down some constants
     if (present(coef)) then
        stat%norm = sqrt(sum((coef*c0)**2))
+       stat%norm1 = sum(abs(coef*c0))
        stat%maxcoef = maxval(abs(coef*c0))
     else
        stat%norm = 0d0
+       stat%norm1 = 0d0
        stat%maxcoef = 0d0
     end if
     stat%nset = nset
@@ -117,11 +119,12 @@ contains
   end subroutine runfit_inf
 
   ! Fit an ACP using an iterative procedure over the atoms. For each
-  ! atom, select the combination of nuse terms that minimizes the error
-  ! subject to the maximum norm (maxnorm) and/or maximum absolute coefficient
-  ! (maxcoef) constraints.
-  subroutine runfit_scanatom(nuse,maxnorm,maxcoef,maxenergy,imaxenergy,&
-     outeval,outacp,minl,maxl)
+  ! atom, select the combination of nuse terms that minimizes the
+  ! error subject to the maximum 2-norm (maxnorm), maximum 1-norm
+  ! (maxnorm1), and/or maximum absolute coefficient (maxcoef)
+  ! constraints.
+  subroutine runfit_scanatom(nuse,maxnorm,maxnorm1,maxcoef,maxenergy,&
+     imaxenergy,outeval,outacp,minl,maxl)
     use global, only: ncols, nfitw, nfit, global_printeval, x, global_printacp, natoms,&
        atom, maxlmax, lmax, nexp, w, ywtarget, coef0, col, lname
     use types, only: stats, realloc
@@ -129,6 +132,7 @@ contains
     
     integer, intent(in) :: nuse
     real*8, intent(in) :: maxnorm
+    real*8, intent(in) :: maxnorm1
     real*8, intent(in) :: maxcoef(:,:,:)
     real*8, intent(in) :: maxenergy(:)
     integer, intent(in) :: imaxenergy(:)
@@ -138,7 +142,8 @@ contains
 
     character(len=:), allocatable :: str, aux, aux2
     integer :: i, j, k, ncyc, n1, n2, nanuse, nanz, nsame, id
-    real*8 :: coef(nfitw), c0(nfitw), y(nfitw), y0(nfit), wrms, minwrms, norm, minnorm
+    real*8 :: coef(nfitw), c0(nfitw), y(nfitw), y0(nfit), wrms, minwrms
+    real*8 :: norm, norm1, minnorm, minnorm1
     real*8 :: acoef, minacoef, aene(size(imaxenergy,1)), minene(size(imaxenergy,1))
     type(stats) :: stat
     integer, allocatable :: iatidx(:,:), natidx(:), lidx(:,:)
@@ -202,12 +207,14 @@ contains
           nanz = min(nanz + nuse,nanuse)
           minwrms = huge(1d0)
           minnorm = huge(1d0)
+          minnorm1 = huge(1d0)
           minacoef = huge(1d0)
           minene = huge(1d0)
           
           ! Run over all the combinations. To save memory and allow
           ! parallelization, use Buckles' algorithm.
-          !$omp parallel do private(coef,c0,y,wrms,norm,acoef,co,aene,ll,ok) firstprivate(idx) schedule(dynamic)
+          !$omp parallel do private(coef,c0,y,wrms,norm,norm1,acoef,co,aene,ll,ok) &
+          !$omp firstprivate(idx) schedule(dynamic)
           do j = 1, binom(natidx(i),nuse)
              ! get the indices for this combination
              call comb(natidx(i),nuse,j,co)
@@ -232,6 +239,7 @@ contains
              call lsqr(nanz,idx(1:nanz),coef,y)
              wrms = sqrt(sum((y-ywtarget)**2))
              norm = sqrt(sum((coef(1:nanz) * c0(1:nanz))**2))
+             norm1 = sum(abs(coef(1:nanz) * c0(1:nanz)))
              acoef = maxval(abs(coef(1:nanz) * c0(1:nanz)))
              if (imaxenergy(1) > 0) then
                 call energy_contrib(nanz,idx(1:nanz),coef(1:nanz),imaxenergy,aene)
@@ -247,10 +255,12 @@ contains
 
              ! apply the discard criteria; save minimum wrms
              !$omp critical (save)
-             if (ok .and. wrms < minwrms .and. norm < maxnorm .and. all(aene < maxenergy)) then
+             if (ok .and. wrms < minwrms .and. norm < maxnorm .and. norm1 < maxnorm1 .and.&
+                all(aene < maxenergy)) then
                 idx0 = idx
                 minwrms = wrms
                 minnorm = norm
+                minnorm1 = norm1
                 minacoef = acoef
                 minene = aene
              end if
@@ -286,7 +296,8 @@ contains
                 write (uout,'(2X,A,2X)') str
           end do
           write (uout,'("  wrms    = ",A)') string(minwrms,'f',14,8)
-          write (uout,'("  norm    = ",A)') string(minnorm,'f',14,8)
+          write (uout,'("  2-norm  = ",A)') string(minnorm,'f',14,8)
+          write (uout,'("  1-norm  = ",A)') string(minnorm1,'f',14,8)
           write (uout,'("  maxcoef = ",A)') string(minacoef,'f',14,8)
           write (uout,'("  maxene  = ",5(A,X))') (string(minene(j),'f',14,8),j=1,size(imaxenergy,1))
           write (uout,'("  nsame   = ",A)') string(nsame)
@@ -316,16 +327,18 @@ contains
   end subroutine runfit_scanatom
 
   ! Fit an ACP using an iterative procedure over the atoms. For each
-  ! atom, select the combination of nuse terms that minimizes the error
-  ! subject to the maximum norm (maxnorm) and/or maximum absolute coefficient
-  ! (maxcoef) constraints.
-  subroutine runfitl(maxnorm,maxcoef,maxenergy,imaxenergy,ltop,seq,outeval,outacp)
+  ! atom, select the combination of nuse terms that minimizes the
+  ! error subject to the maximum 2-norm (maxnorm), maximum 1-norm
+  ! (maxnorm1), and/or maximum absolute coefficient (maxcoef)
+  ! constraints.
+  subroutine runfitl(maxnorm,maxnorm1,maxcoef,maxenergy,imaxenergy,ltop,seq,outeval,outacp)
     use global, only: ncols, nfitw, nfit, global_printeval, x, global_printacp, natoms,&
        atom, maxlmax, lmax, nexp, w, ywtarget, coef0, col, lname
     use types, only: stats, realloc
     use tools_io, only: uout, string, ferror, faterr, string, ioj_left
     
     real*8, intent(in) :: maxnorm
+    real*8, intent(in) :: maxnorm1
     real*8, intent(in) :: maxcoef(:,:,:)
     real*8, intent(in) :: maxenergy(:)
     integer, intent(in) :: imaxenergy(:)
@@ -337,10 +350,10 @@ contains
     integer :: i, j, k, l, m, n1, ncyc, nsame, nsame0
     real*8 :: coef(nfitw), c0(nfitw), y0(nfit), y(nfitw)
     character(len=:), allocatable :: str, aux, aux2
-    real*8 :: wrms, norm, acoef, aene(size(imaxenergy,1))
+    real*8 :: wrms, norm, norm1, acoef, aene(size(imaxenergy,1))
     real*8 :: minene(size(imaxenergy,1)), minene2(size(imaxenergy,1))
-    real*8 :: minwrms, minnorm, minacoef
-    real*8 :: minwrms2, minnorm2, minacoef2
+    real*8 :: minwrms, minnorm, minnorm1, minacoef
+    real*8 :: minwrms_, minnorm_, minnorm1_, minacoef_
     type(stats) :: stat
     integer, allocatable :: iatidx(:,:,:), idx0(:,:,:), nidx0(:,:), idx(:)
     integer, allocatable :: co(:), idxroot(:), idxsave(:), idxsave2(:)
@@ -391,6 +404,7 @@ contains
     ! initialize global quantities
     minwrms = huge(1d0)
     minnorm = huge(1d0)
+    minnorm1 = huge(1d0)
     minacoef = huge(1d0)
     minene = huge(1d0)
 
@@ -442,9 +456,10 @@ contains
              idx(1:nroot) = idxroot
              idx(nroot+1:) = 0
 
-             minwrms2 = huge(1d0)
-             minnorm2 = huge(1d0)
-             minacoef2 = huge(1d0)
+             minwrms_ = huge(1d0)
+             minnorm_ = huge(1d0)
+             minnorm1_ = huge(1d0)
+             minacoef_ = huge(1d0)
              minene2 = huge(1d0)
 
              ! allocate the second save array
@@ -453,7 +468,7 @@ contains
              idxsave2 = 0
 
              ! Run over all the combinations with this number of terms
-             !$omp parallel do private(coef,c0,y,wrms,norm,acoef,aene,ok) firstprivate(co,idx)
+             !$omp parallel do private(coef,c0,y,wrms,norm,norm1,acoef,aene,ok) firstprivate(co,idx)
              do l = 1, binom(nexp,k)
                 ! get the indices for this combination
                 call comb(nexp,k,l,co)
@@ -471,6 +486,7 @@ contains
                 call lsqr(nn,idx(1:nn),coef,y)
                 wrms = sqrt(sum((y-ywtarget)**2))
                 norm = sqrt(sum((coef(1:nn) * c0(1:nn))**2))
+                norm1 = sum(abs(coef(1:nn) * c0(1:nn)))
                 acoef = maxval(abs(coef(1:nn) * c0(1:nn)))
                 if (imaxenergy(1) > 0) then
                    call energy_contrib(nn,idx(1:nn),coef(1:nn),imaxenergy,aene)
@@ -485,12 +501,14 @@ contains
                 end do
 
                 ! apply the discard criteria; save minimum wrms
-                if (ok .and. wrms < minwrms2 .and. norm < maxnorm .and. all(aene < maxenergy)) then
+                if (ok .and. wrms < minwrms_ .and. norm < maxnorm .and. &
+                   norm1 < maxnorm1 .and. all(aene < maxenergy)) then
                    !$omp critical (save)
                    idxsave2 = idx(nroot+1:nn)
-                   minwrms2 = wrms
-                   minnorm2 = norm
-                   minacoef2 = acoef
+                   minwrms_ = wrms
+                   minnorm_ = norm
+                   minnorm1_ = norm1
+                   minacoef_ = acoef
                    minene2 = aene
                    !$omp end critical (save)
                 end if
@@ -498,11 +516,12 @@ contains
              !$omp end parallel do
 
              ! write down the new combination, if lower than the old one
-             if (minwrms2 < minwrms) then
+             if (minwrms_ < minwrms) then
                 saved = .true.
-                minwrms = minwrms2
-                minnorm = minnorm2
-                minacoef = minacoef2
+                minwrms = minwrms_
+                minnorm = minnorm_
+                minnorm1 = minnorm1_
+                minacoef = minacoef_
                 minene = minene2 
                 if (allocated(idxsave)) deallocate(idxsave)
                 allocate(idxsave(size(idxsave2,1)))
@@ -549,7 +568,8 @@ contains
              end do
           end do
           write (uout,'("  wrms    = ",A)') string(minwrms,'f',14,8)
-          write (uout,'("  norm    = ",A)') string(minnorm,'f',14,8)
+          write (uout,'("  2-norm  = ",A)') string(minnorm,'f',14,8)
+          write (uout,'("  1-norm  = ",A)') string(minnorm1,'f',14,8)
           write (uout,'("  maxcoef = ",A)') string(minacoef,'f',14,8)
           write (uout,'("  maxene  = ",5(A,X))') (string(minene(k),'f',14,8),k=1,size(imaxenergy,1))
           write (uout,'("  nsame   = ",A)') string(nsame)

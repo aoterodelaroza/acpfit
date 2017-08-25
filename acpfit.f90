@@ -32,7 +32,7 @@ program acpfit
   type(stats) :: statempty
   real*8, allocatable :: ydum(:), fit_maxenergy(:), fit_maxcoef(:,:,:)
   integer :: ifit_n, imode, maxl(30), minl(30)
-  real*8 :: fit_maxnorm
+  real*8 :: fit_maxnorm, fit_maxnorm1
   integer, allocatable :: imaxenergy(:), ltop(:,:), seq(:,:)
 
   ! energy terms files in manual input
@@ -59,8 +59,8 @@ program acpfit
   call global_init()
 
   ! read and parse the input
-  call global_input(nefilesi,efilei,imode,ifit_n,fit_maxnorm,fit_maxcoef,fit_maxenergy,&
-     imaxenergy,minl,maxl,ltop,seq)
+  call global_input(nefilesi,efilei,imode,ifit_n,fit_maxnorm,fit_maxnorm1,fit_maxcoef,&
+     fit_maxenergy,imaxenergy,minl,maxl,ltop,seq)
 
   ! build the file names and process user input re specific energy term file names
   call makefilenames(nefilesi,efilei)
@@ -80,7 +80,7 @@ program acpfit
   iset_step(nset) = 1
 
   ! write the input data information
-  call global_printinfo(fit_maxnorm,fit_maxcoef,fit_maxenergy,imaxenergy)
+  call global_printinfo(fit_maxnorm,fit_maxnorm1,fit_maxcoef,fit_maxenergy,imaxenergy)
 
   ! read the information from the external files
   call readfiles()
@@ -97,12 +97,12 @@ program acpfit
         ! all terms in the ACP
         call runfit_inf(outeval,outacp)
      elseif (ifit_n > 0) then
-        call runfit_scanatom(ifit_n,fit_maxnorm,fit_maxcoef,fit_maxenergy,imaxenergy,&
-           outeval,outacp,minl,maxl)
+        call runfit_scanatom(ifit_n,fit_maxnorm,fit_maxnorm1,fit_maxcoef,fit_maxenergy,&
+           imaxenergy,outeval,outacp,minl,maxl)
      end if
   elseif (imode == imode_fitl) then
-     call runfitl(fit_maxnorm,fit_maxcoef,fit_maxenergy,imaxenergy,ltop,seq,&
-        outeval,outacp)
+     call runfitl(fit_maxnorm,fit_maxnorm1,fit_maxcoef,fit_maxenergy,imaxenergy,&
+        ltop,seq,outeval,outacp)
   elseif (imode == imode_fit_manual) then
      call runfit_manual(outeval,outacp)
   elseif (imode == imode_eval) then

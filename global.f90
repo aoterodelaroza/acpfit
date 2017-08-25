@@ -183,9 +183,10 @@ contains
   end subroutine global_check
 
   !> Write information about the output data to the output
-  subroutine global_printinfo(maxnorm,maxcoef,maxenergy,imaxenergy)
+  subroutine global_printinfo(maxnorm,maxnorm1,maxcoef,maxenergy,imaxenergy)
     use tools_io, only: string, ioj_left, uout
     real*8, intent(in) :: maxnorm
+    real*8, intent(in) :: maxnorm1
     real*8, intent(in) :: maxcoef(:,:,:)
     real*8, intent(in) :: maxenergy(:)
     integer, intent(in) :: imaxenergy(:)
@@ -225,7 +226,10 @@ contains
        end do
     end if
     if (maxnorm < huge(1d0)) then
-       write (uout,'("Maximum norm of the coefficients: ",A)') string(maxnorm,'f',12,8,4)
+       write (uout,'("Maximum 2-norm of the coefficients: ",A)') string(maxnorm,'f',12,8,4)
+    end if
+    if (maxnorm1 < huge(1d0)) then
+       write (uout,'("Maximum 1-norm of the coefficients: ",A)') string(maxnorm1,'f',12,8,4)
     end if
     if (imaxenergy(1) > 0) then
        do i = 1, size(imaxenergy,1)
@@ -358,9 +362,10 @@ contains
 
     if (present(stat)) then
        write (lu,'("# Statistics: ")')
-       write (lu,'("#   norm =    ",A)') string(stat%norm,'f',12,6,ioj_left)
+       write (lu,'("#   2-norm  =    ",A)') string(stat%norm,'f',12,6,ioj_left)
+       write (lu,'("#   1-norm  =    ",A)') string(stat%norm1,'f',12,6,ioj_left)
        write (lu,'("#   maxcoef = ",A)') string(stat%maxcoef,'f',12,6,ioj_left)
-       write (lu,'("#   wrms =    ",A)') string(stat%wrms,'f',14,8,ioj_left)
+       write (lu,'("#   wrms    =    ",A)') string(stat%wrms,'f',14,8,ioj_left)
        do i = 1, nset
           write (lu,'("#",3X,A," rms = ",A," mae = ",A," mse = ",A)') &
              string(iset_label(i),10,ioj_left), string(stat%rms(i),'f',14,8), &
@@ -463,8 +468,8 @@ contains
   end subroutine global_printacp
 
   ! read and parse input
-  subroutine global_input(nefilesi,efilei,imode,ifit_n,fit_maxnorm,fit_maxcoef,&
-     fit_maxenergy,imaxenergy,minl,maxl,ltop,seq)
+  subroutine global_input(nefilesi,efilei,imode,ifit_n,fit_maxnorm,fit_maxnorm1,&
+     fit_maxcoef,fit_maxenergy,imaxenergy,minl,maxl,ltop,seq)
     use tools_io, only: uin, getline, lgetword, equal, getword, faterr, ferror,&
        isinteger, isreal
     use types, only: realloc
@@ -473,6 +478,7 @@ contains
     integer, intent(out) :: ifit_n 
     integer, intent(out) :: imode
     real*8, intent(out) :: fit_maxnorm
+    real*8, intent(out) :: fit_maxnorm1
     real*8, allocatable, intent(inout) :: fit_maxcoef(:,:,:)
     real*8, allocatable, intent(inout) :: fit_maxenergy(:)
     integer, allocatable, intent(inout) :: imaxenergy(:)
@@ -493,6 +499,7 @@ contains
     allocate(efilei(1))
     efilei(1) = ""
     fit_maxnorm = huge(1d0)
+    fit_maxnorm1 = huge(1d0)
     imode = imode_no
     if (allocated(imaxenergy)) deallocate(imaxenergy)
     allocate(imaxenergy(1))
@@ -728,13 +735,17 @@ contains
                    if (ifit_n == 0) &
                       call ferror("acpfit","wrong RUN FIT syntax",faterr)
                 end if
-                ! RUN ... [MAXNORM norm.r] [MAXCOEF coef.r]
+                ! RUN ... [MAXNORM norm.r] [MAXNORM1 norm1.r] [MAXCOEF coef.r]
                 do while(.true.)
                    word = lgetword(line,lp)
                    if (equal(word,"maxnorm")) then
                       ok = isreal(fit_maxnorm,line,lp)
                       if (.not.ok) &
                          call ferror("acpfit","wrong RUN FIT MAXNORM syntax",faterr)
+                   elseif (equal(word,"maxnorm1")) then
+                      ok = isreal(fit_maxnorm1,line,lp)
+                      if (.not.ok) &
+                         call ferror("acpfit","wrong RUN FIT MAXNORM1 syntax",faterr)
                    elseif (equal(word,"maxcoef")) then
                       ok = isreal(rdum,line,lp)
                       if (.not.ok) &
