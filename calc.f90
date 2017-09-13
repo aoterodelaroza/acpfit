@@ -9,6 +9,7 @@ module calc
   public :: runfit_manual
   public :: runeval_input
   public :: runeval_file
+  public :: runoctavedump
   public :: runtest
   private :: choose
   private :: comb
@@ -870,6 +871,56 @@ contains
     call global_printeval("final",y,stat,outeval)
     
   end subroutine runeval_file
+
+  ! Write a tetsting ACP that uses all terms and has coefficients that roughtly
+  ! give the same average contribution to the wrms over the whole set.
+  subroutine runoctavedump()
+    use global, only: natoms, atom, lmax, nexp, eexp, xw, ywtarget
+    use tools_io, only: uout, faterr, ferror, string, fopen_write, fclose
+    
+    character(len=:), allocatable :: ofile 
+    integer :: lu
+    integer :: i, j
+
+    ofile = "octavedump.m"
+    write (uout,'("+ Writing octave dump file to octavedump.m"/)')
+
+    lu = fopen_write(ofile)
+
+    write (lu,'("atoms={...")')
+    do i = 1, natoms
+       write (lu,'("""",A,""",...")') trim(atom(i))
+    end do
+    write (lu,'("};")')
+
+    write (lu,'("lmax=[...")')
+    write (lu,'(4X,999(A,X))') (string(lmax(i)),i=1,natoms)
+    write (lu,'("];")')
+
+    write (lu,'("lname={""l"",""s"",""p"",""d"",""f"",""g""};")')
+
+    write (lu,'("explist=[...")')
+    write (lu,'(4X,999(A,X))') (trim(string(eexp(i),'f',20,10)),i=1,nexp)
+    write (lu,'("];")')
+
+    write (lu,'("nrows = ",A,";")') string(size(xw,1))
+    write (lu,'("ncols = ",A,";")') string(size(xw,2))
+    
+    write (lu,'("x=[...")')
+    do i = 1, size(xw,1)
+       write (lu,'(1X,99999(A,X))') (trim(string(xw(i,j),'e',25,14)),j=1,size(xw,2))
+    end do
+    write (lu,'("];")')
+
+    write (lu,'("y=[...")')
+    do i = 1, size(ywtarget)
+       write (lu,'(1X,A)') trim(string(ywtarget(i),'e',25,14))
+    end do
+    write (lu,'("];")')
+
+    call fclose(lu)
+
+  end subroutine runoctavedump
 
   ! Write a tetsting ACP that uses all terms and has coefficients that roughtly
   ! give the same average contribution to the wrms over the whole set.

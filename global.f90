@@ -97,8 +97,9 @@ module global
   integer, parameter :: imode_fit_manual = 3
   integer, parameter :: imode_eval = 4
   integer, parameter :: imode_eval_file = 5
-  integer, parameter :: imode_test = 6
-  integer, parameter :: imode_no = 7
+  integer, parameter :: imode_octavedump = 6
+  integer, parameter :: imode_test = 7
+  integer, parameter :: imode_no = 8
 
 contains
   
@@ -851,6 +852,8 @@ contains
              endif
           elseif (equal(word,'test')) then
              imode = imode_test
+          elseif (equal(word,'octavedump')) then
+             imode = imode_octavedump
           elseif (len_trim(word) > 0) then
              call ferror("acpfit","unknown RUN keyword: " // word,faterr)
           else

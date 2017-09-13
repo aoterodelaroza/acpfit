@@ -1319,6 +1319,9 @@ contains
     write (uout,'("  RUN EVAL file.acp")')
     write (uout,'("    Evaluate the provided ACP (file in Gaussian format) with the current data.")')
     write (uout,'("")')
+    write (uout,'("  RUN OCTAVEDUMP")')
+    write (uout,'("    Dump the fitting data to an octave-style file (octavedump.m).")')
+    write (uout,'("")')
 
   end subroutine help_me
 
