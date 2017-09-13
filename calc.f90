@@ -875,12 +875,12 @@ contains
   ! Write a tetsting ACP that uses all terms and has coefficients that roughtly
   ! give the same average contribution to the wrms over the whole set.
   subroutine runoctavedump()
-    use global, only: natoms, atom, lmax, nexp, eexp, xw, ywtarget
+    use global, only: natoms, atom, lmax, nexp, eexp, xw, ywtarget, coef0
     use tools_io, only: uout, faterr, ferror, string, fopen_write, fclose
     
     character(len=:), allocatable :: ofile 
     integer :: lu
-    integer :: i, j
+    integer :: i, j, k, n
 
     ofile = "octavedump.m"
     write (uout,'("+ Writing octave dump file to octavedump.m"/)')
@@ -906,6 +906,18 @@ contains
     write (lu,'("nrows = ",A,";")') string(size(xw,1))
     write (lu,'("ncols = ",A,";")') string(size(xw,2))
     
+    write (lu,'("coef0=[...")')
+    n = 0
+    do i = 1, natoms
+       do j = 1, lmax(i)
+          do k = 1, nexp
+             n = n + 1
+             write (lu,'(1X,A)') trim(string(coef0(k,j,i),'e',25,14))
+          end do
+       end do
+    end do
+    write (lu,'("]'';")')
+
     write (lu,'("x=[...")')
     do i = 1, size(xw,1)
        write (lu,'(1X,99999(A,X))') (trim(string(xw(i,j),'e',25,14)),j=1,size(xw,2))
