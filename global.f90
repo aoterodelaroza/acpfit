@@ -379,12 +379,12 @@ contains
           call ferror("global_printeval","inconsistent size of y",faterr)
 
        write (lu,'(99(A,X))') string("Id",6,ioj_left), string("Name",maxnamelen,ioj_center), &
-          string("wei",5,ioj_center), string("yempty",20,ioj_center), &
+          string("wei",12,ioj_center), string("yempty",20,ioj_center), &
           string("yscf",20,ioj_center), string("ytotal",20,ioj_center), &
           string("yref",20,ioj_center), string("diff",20,ioj_center)
        do i = 1, nfit
           write (lu,'(99(A,X))') string(i,6,ioj_left), string(names(i),maxnamelen,ioj_center), &
-             string(w(i),'f',5,1,ioj_right), string(yempty(i),'f',20,10,8), &
+             string(w(i),'f',12,8,ioj_right), string(yempty(i),'f',20,10,8), &
              string(yempty(i)+y(i),'f',20,10,8), string(yempty(i)+y(i)+ydisp(i),'f',20,10,8), &
              string(yref(i),'f',20,10,8), string(yempty(i)+y(i)+ydisp(i)-yref(i),'f',20,10,8)
        end do
