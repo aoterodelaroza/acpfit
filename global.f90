@@ -854,6 +854,11 @@ contains
              imode = imode_test
           elseif (equal(word,'octavedump')) then
              imode = imode_octavedump
+             word = getword(line,lp)
+             if (equal(word,"maxcfile")) then
+                word = getword(line,lp)
+                call readcfile(word,fit_maxcoef)
+             end if
           elseif (len_trim(word) > 0) then
              call ferror("acpfit","unknown RUN keyword: " // word,faterr)
           else

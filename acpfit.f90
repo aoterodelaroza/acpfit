@@ -112,7 +112,7 @@ program acpfit
   elseif (imode == imode_test) then
      call runtest(outeval,outacp)
   elseif (imode == imode_octavedump) then
-     call runoctavedump()
+     call runoctavedump(fit_maxcoef)
   end if
 
   write (uout,'("ACPFIT ended succesfully (",A," WARNINGS, ",A," COMMENTS)")')&
