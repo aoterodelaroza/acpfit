@@ -607,7 +607,7 @@ contains
           if (.not.ok) &
              call ferror("acpfit","wrong NFIT syntax",faterr)
        elseif (equal(word,'set')) then
-          ! SET label.s ini.i end.i step.i
+          ! SET label.s ini.i num.i step.i
           nset = nset + 1
           if (nset > ubound(iset_ini,1)) then
              call realloc(iset_label,2*nset)
