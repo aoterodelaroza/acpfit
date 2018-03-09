@@ -1,0 +1,35 @@
+datapath dat/
+atom O H
+lmax d p
+nfit 1089
+
+file sub d3.dat
+
+set e2 1 410
+set e3 411 580
+set e4 991 58
+set shields 1049 38
+set dipole 1087 1
+set energy 1088 2
+set prism 1071 1
+set w2 1051 1
+set w3 1052 2
+set w4 1054 3
+set w5 1057 7
+set w6 1064 8
+set w7 1072 11
+set w8 1083 2
+set w9 1085 2
+set w10 1049 2
+
+exp 2 0.08 0.10 0.12 0.14 0.16 0.18 0.20 0.22 0.24 0.26 \
+      0.28 0.40 0.60 0.80 1.00 0.004 0.0075 0.01 0.02 0.04
+
+output eval lasso-04.eval
+output acp lasso-04.acp
+output empty lasso-04.empty
+
+## run fitl maxcfile dat/maxcoef-tight.dat ltop O l 8 H l 8 O s 3 H s 3 O p 3 H p 3 O d 3 \
+##          sequence O l H l O s H s O p H p O d
+
+run eval lasso-04.acp
