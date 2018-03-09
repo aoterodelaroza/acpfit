@@ -1319,8 +1319,15 @@ contains
     write (uout,'("  RUN EVAL file.acp")')
     write (uout,'("    Evaluate the provided ACP (file in Gaussian format) with the current data.")')
     write (uout,'("")')
-    write (uout,'("  RUN OCTAVEDUMP")')
+    write (uout,'("  RUN OCTAVEDUMP [MAXCFILE file.s]")')
     write (uout,'("    Dump the fitting data to an octave-style file (octavedump.m).")')
+    write (uout,'("")')
+    write (uout,'("    * If MAXCFILE is present read a file name. The file name should contain a coefficient")')
+    write (uout,'("      constraint in each line, of the form:")')
+    write (uout,'("        At l n exp maxcoef")')
+    write (uout,'("      The coefficient corresponding to the ACP term in atom At, angular momentum ")')
+    write (uout,'("      channel l, n equal to n, and exponent exp can not be higher than maxcoef in")')
+    write (uout,'("      absolute value.")')
     write (uout,'("")')
 
   end subroutine help_me
