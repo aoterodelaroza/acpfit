@@ -27,21 +27,13 @@ for it = 1:length(tlist)
 
   ## scale the columns using the maximum coefficient information
   if (exist("maxcoef","var") && !isempty(maxcoef) && t > 0 && exist("usemaxcoef","var") && usemaxcoef)
-    factor = t / min(maxcoef);
-    while (1)
-      for i = 1:columns(x)
-        xtilde(:,i) = x(:,i) * factor * maxcoef(i) / t;
-      endfor
-      [w,iteration] = LassoActiveSet(xtilde,y,t);
-      for i = 1:columns(x)
-        w(i) = w(i) * factor * maxcoef(i) / t;
-      endfor
-      if (!isempty(find(abs(w) > maxcoef')))
-        factor /= 1.2;
-      else
-        break
-      endif
-    endwhile
+    for i = 1:columns(x)
+      xtilde(:,i) = x(:,i) * maxcoef(i) / mean(maxcoef);
+    endfor
+    [w,iteration] = LassoActiveSet(xtilde,y,t);
+    for i = 1:columns(x)
+      w(i) = w(i) * maxcoef(i) / mean(maxcoef);
+    endfor
     clear xtilde
   else
     [w,iteration] = LassoActiveSet(x,y,t);
