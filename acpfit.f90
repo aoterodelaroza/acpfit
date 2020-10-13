@@ -20,7 +20,8 @@ program acpfit
   use files, only: makefilenames, readfiles
   use global, only: fileroot, nset, iset_label, iset_ini, iset_n, iset_step, nfit,&
      outempty, outeval, outacp, imode_fit, imode_fitl, imode_fit_manual, imode_eval,&
-     imode_eval_file, imode_test, imode_octavedump, global_init, global_input, global_fillcol,&
+     imode_eval_file, imode_test, imode_octavedump, imode_octavedump_universal, &
+     imode_octavedump_universal_local, global_init, global_input, global_fillcol,&
      global_printinfo, global_printeval, inacp
   use types, only: realloc, stats
   use tools_io, only: equal, lgetword, getline, uout, isreal, isinteger, getword, &
@@ -111,8 +112,9 @@ program acpfit
      call runeval_file(outeval,inacp)
   elseif (imode == imode_test) then
      call runtest(outeval,outacp)
-  elseif (imode == imode_octavedump) then
-     call runoctavedump(fit_maxcoef)
+  elseif (imode == imode_octavedump.or.imode == imode_octavedump_universal.or.&
+          imode == imode_octavedump_universal_local) then
+     call runoctavedump(imode,fit_maxcoef)
   end if
 
   write (uout,'("ACPFIT ended succesfully (",A," WARNINGS, ",A," COMMENTS)")')&

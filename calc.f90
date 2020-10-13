@@ -874,32 +874,44 @@ contains
 
   ! Write a tetsting ACP that uses all terms and has coefficients that roughtly
   ! give the same average contribution to the wrms over the whole set.
-  subroutine runoctavedump(maxcoef)
-    use global, only: natoms, atom, lmax, nexp, eexp, xw, ywtarget, coef0
+  subroutine runoctavedump(imode,maxcoef)
+    use global, only: natoms, atom, lmax, nexp, eexp, xw, ywtarget, coef0,&
+       imode_octavedump, imode_octavedump_universal, imode_octavedump_universal_local
     use tools_io, only: uout, faterr, ferror, string, fopen_write, fclose
-    
+    integer, intent(in) :: imode
     real*8, intent(in) :: maxcoef(:,:,:)
 
     character(len=:), allocatable :: ofile 
-    integer :: lu
-    integer :: i, j, k
-
+    integer :: lu, lmaxx
+    integer :: i, j, k, n, m
+    real*8, allocatable :: coef0map(:), xwaux(:,:)
 
     ofile = "octavedump.m"
     write (uout,'("+ Writing octave dump file to octavedump.m"/)')
 
     lu = fopen_write(ofile)
 
-    write (lu,'("atoms={...")')
-    do i = 1, natoms
-       write (lu,'("""",A,""",...")') trim(atom(i))
-    end do
-    write (lu,'("};")')
+    if (imode == imode_octavedump) then
+       write (lu,'("atoms={...")')
+       do i = 1, natoms
+          write (lu,'("""",A,""",...")') trim(atom(i))
+       end do
+       write (lu,'("};")')
+    else
+       write (lu,'("atoms={""X""};")')
+    end if
 
-    write (lu,'("lmax=[...")')
-    write (lu,'(4X,999(A,X))') (string(lmax(i)),i=1,natoms)
-    write (lu,'("];")')
-
+    if (imode == imode_octavedump) then
+       write (lu,'("lmax=[...")')
+       write (lu,'(4X,999(A,X))') (string(lmax(i)),i=1,natoms)
+       write (lu,'("];")')
+    elseif (imode == imode_octavedump_universal) then
+       lmaxx = minval(lmax(1:natoms))
+       write (lu,'("lmax=[",A,"];")') string(lmaxx)
+    elseif (imode == imode_octavedump_universal_local) then
+       lmaxx = 1
+       write (lu,'("lmax=[",A,"];")') string(lmaxx)
+    end if
     write (lu,'("lname={""l"",""s"",""p"",""d"",""f"",""g""};")')
 
     write (lu,'("explist=[...")')
@@ -907,19 +919,16 @@ contains
     write (lu,'("];")')
 
     write (lu,'("nrows = ",A,";")') string(size(xw,1))
-    write (lu,'("ncols = ",A,";")') string(size(xw,2))
-    
-    write (lu,'("coef0=[...")')
-    do i = 1, natoms
-       do j = 1, lmax(i)
-          do k = 1, nexp
-             write (lu,'(1X,A)') trim(string(coef0(k,j,i),'e',25,14))
-          end do
-       end do
-    end do
-    write (lu,'("]'';")')
+
+    if (imode == imode_octavedump) then
+       write (lu,'("ncols = ",A,";")') string(size(xw,2))
+    else
+       write (lu,'("ncols = ",A,";")') string(lmaxx * nexp)
+    end if
 
     if (any(maxcoef /= huge(1d0))) then
+       if (imode == imode_octavedump_universal .or. imode == imode_octavedump_universal_local) &
+          call ferror("runoctavedump","maxcoef not compatible with universal/universal_local",faterr)
        write (lu,'("maxcoef=[...")')
        do i = 1, natoms
           do j = 1, lmax(i)
@@ -931,11 +940,45 @@ contains
        write (lu,'("]'';")')
     end if
 
-    write (lu,'("x=[...")')
-    do i = 1, size(xw,1)
-       write (lu,'(1X,99999(A,X))') (trim(string(xw(i,j),'e',25,14)),j=1,size(xw,2))
+    allocate(coef0map(size(xw,2)))
+    n = 0
+    do i = 1, natoms
+       do j = 1, lmax(i)
+          do k = 1, nexp
+             n = n + 1
+             coef0map(n) = coef0(k,j,i)
+          end do
+       end do
     end do
+
+    write (lu,'("x=[...")')
+    if (imode == imode_octavedump) then
+       do i = 1, size(xw,1)
+          write (lu,'(1X,99999(A,X))') (trim(string(xw(i,j)/coef0map(j),'e',25,14)),j=1,size(xw,2))
+       end do
+    else
+       allocate(xwaux(size(xw,1),lmaxx * nexp))
+       xwaux = 0d0
+       n = 0
+       do i = 1, natoms
+          m = 0
+          do j = 1, lmax(i)
+             do k = 1, nexp
+                n = n + 1
+                m = m + 1
+                if (j > lmaxx) cycle
+                xwaux(:,m) = xwaux(:,m) + xw(:,n) / coef0map(n)
+             end do
+          end do
+       end do
+       
+       do i = 1, size(xwaux,1)
+          write (lu,'(1X,99999(A,X))') (trim(string(xwaux(i,j),'e',25,14)),j=1,size(xwaux,2))
+       end do
+       deallocate(xwaux)
+    end if
     write (lu,'("];")')
+    deallocate(coef0map)
 
     write (lu,'("y=[...")')
     do i = 1, size(ywtarget)

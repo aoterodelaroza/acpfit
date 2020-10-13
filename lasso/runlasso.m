@@ -16,26 +16,29 @@ if (!exist("octavedump.m","file"))
 endif
 source("octavedump.m");
 
-## scale the ACP terms with the coef0
-for i = 1:columns(x)
-  x(:,i) /= coef0(i);
-endfor
-
 ## start the loop
 nacp = 0;
-printf("#it    t           norm-1       norm-2      norm-inf      wrms    nterm iter\n");
+printf("| #id |   t      |     norm-1   |    norm-2   |   norm-inf   |   wrms  |  nterm | iter |\n");
 for it = 1:length(tlist)
   t = tlist(it);
 
   ## scale the columns using the maximum coefficient information
   if (exist("maxcoef","var") && !isempty(maxcoef) && t > 0 && exist("usemaxcoef","var") && usemaxcoef)
-    for i = 1:columns(x)
-      xtilde(:,i) = x(:,i) * maxcoef(i) / mean(maxcoef);
-    endfor
-    [w,iteration] = LassoActiveSet(xtilde,y,t);
-    for i = 1:columns(x)
-      w(i) = w(i) * maxcoef(i) / mean(maxcoef);
-    endfor
+    factor = t / min(maxcoef);
+    while (1)
+      for i = 1:columns(x)
+        xtilde(:,i) = x(:,i) * factor * maxcoef(i) / t;
+      endfor
+      [w,iteration] = LassoActiveSet(x,y,t,'optTol',1e-9,'zeroThreshold',1e-9);
+      for i = 1:columns(x)
+        w(i) = w(i) * factor * maxcoef(i) / t;
+      endfor
+      if (!isempty(find(abs(w) > maxcoef')))
+        factor /= 1.2;
+      else
+        break
+      endif
+    endwhile
     clear xtilde
   else
     [w,iteration] = LassoActiveSet(x,y,t,'optTol',1e-9,'zeroThreshold',1e-9);
@@ -86,7 +89,8 @@ for it = 1:length(tlist)
 
   ## Calculate the wrms and print the line
   wrms = sqrt(sum((y - x * worig).^2));
-  printf("%2.2d %.10f %.10f %.10f %.10f %.10f %d %d\n",it,t,...
+
+  printf("| %2.2d |  %.4f |  %.4f | %.4f | %.4f | %.4f | %d | %d |\n",it,t,...
          sum(abs(w)),sqrt(sum(w.^2)),max(abs(w)),...
          wrms,sum(sum(nterms)),iteration);
 endfor

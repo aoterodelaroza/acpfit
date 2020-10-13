@@ -98,8 +98,10 @@ module global
   integer, parameter :: imode_eval = 4
   integer, parameter :: imode_eval_file = 5
   integer, parameter :: imode_octavedump = 6
-  integer, parameter :: imode_test = 7
-  integer, parameter :: imode_no = 8
+  integer, parameter :: imode_octavedump_universal = 7
+  integer, parameter :: imode_octavedump_universal_local = 8
+  integer, parameter :: imode_test = 9
+  integer, parameter :: imode_no = 10
 
 contains
   
@@ -854,11 +856,19 @@ contains
              imode = imode_test
           elseif (equal(word,'octavedump')) then
              imode = imode_octavedump
-             word = getword(line,lp)
-             if (equal(word,"maxcfile")) then
+             do while (.true.)
                 word = getword(line,lp)
-                call readcfile(word,fit_maxcoef)
-             end if
+                if (equal(word,"maxcfile")) then
+                   word = getword(line,lp)
+                   call readcfile(word,fit_maxcoef)
+                elseif (equal(word,"universal")) then
+                   imode = imode_octavedump_universal
+                elseif (equal(word,"universal_local")) then
+                   imode = imode_octavedump_universal_local
+                else
+                   exit
+                end if
+             end do
           elseif (len_trim(word) > 0) then
              call ferror("acpfit","unknown RUN keyword: " // word,faterr)
           else
