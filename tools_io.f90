@@ -1329,6 +1329,14 @@ contains
     write (uout,'("      channel l, n equal to n, and exponent exp can not be higher than maxcoef in")')
     write (uout,'("      absolute value.")')
     write (uout,'("")')
+    write (uout,'("  RUN OCTAVEDUMP UNIVERSAL")')
+    write (uout,'("    Dump the fitting data to an octave-style file (octavedump.m).")')
+    write (uout,'("    All atoms share the same ACP. The ACP has a maximum l equal to the minimum lmax of all atoms.")')
+    write (uout,'("")')
+    write (uout,'("  RUN OCTAVEDUMP UNIVERSAL_LOCAL")')
+    write (uout,'("    Dump the fitting data to an octave-style file (octavedump.m).")')
+    write (uout,'("    All atoms share the same ACP, and the ACP only has the local channel.")')
+    write (uout,'("")')
 
   end subroutine help_me
 
