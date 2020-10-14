@@ -875,8 +875,9 @@ contains
   ! Write a tetsting ACP that uses all terms and has coefficients that roughtly
   ! give the same average contribution to the wrms over the whole set.
   subroutine runoctavedump(imode,maxcoef)
-    use global, only: natoms, atom, lmax, nexp, eexp, xw, ywtarget, coef0,&
-       imode_octavedump, imode_octavedump_universal, imode_octavedump_universal_local
+    use global, only: natoms, atom, lmax, nexp, eexp, xw, ywtarget, ywadd, coef0,&
+       imode_octavedump, imode_octavedump_universal, imode_octavedump_universal_local,&
+       addfile
     use tools_io, only: uout, faterr, ferror, string, fopen_write, fclose
     integer, intent(in) :: imode
     real*8, intent(in) :: maxcoef(:,:,:)
@@ -985,6 +986,20 @@ contains
        write (lu,'(1X,A)') trim(string(ywtarget(i),'e',25,14))
     end do
     write (lu,'("];")')
+
+    if (allocated(ywadd)) then
+       write (lu,'("yaddnames={...")')
+       do j = 1, size(ywadd,2)
+          write (lu,'(2X,"""",A,""",...")') trim(addfile(j))
+       end do
+       write (lu,'("};")')
+
+       write (lu,'("yadd=[...")')
+       do i = 1, size(ywadd,1)
+          write (lu,'(1X,999(A,X))') (trim(string(ywadd(i,j),'e',25,14)),j=1,size(ywadd,2))
+       end do
+       write (lu,'("];")')
+    end if
 
     call fclose(lu)
 

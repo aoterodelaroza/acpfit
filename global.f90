@@ -68,7 +68,8 @@ module global
   character(len=:), allocatable :: inacp !< name of the acp input file
   character*255, allocatable :: efile(:,:,:) !< name of the energy terms files
   character*255, allocatable :: subfile(:) !< name of the subtract energy file
-  integer :: nsubfiles
+  character*255, allocatable :: addfile(:) !< name of the additional energy file
+  integer :: nsubfiles, naddfiles
 
   ! labels for the angular momentum channels
   character*1, parameter :: lname(6) = (/"l","s","p","d","f","g"/) !< names of the angmom channels
@@ -84,6 +85,8 @@ module global
   real*8, allocatable :: xw(:,:) !< weighted x
   real*8, allocatable :: ytarget(:) !< target of the fit
   real*8, allocatable :: ywtarget(:) !< weighted target y
+  real*8, allocatable :: yadd(:,:) !< additional energy contributions
+  real*8, allocatable :: ywadd(:,:) !< weighted yadd
   character*128, allocatable :: names(:) !< names of the systems in the fitting set
   integer :: maxnamelen !< maximum length of the names
 
@@ -119,6 +122,7 @@ contains
     outacp = ""
     nexp = 0
     nsubfiles = 0
+    naddfiles = 0
     nfit = 0
     nset = 0
     if (allocated(atom)) deallocate(atom)
@@ -126,6 +130,7 @@ contains
     if (allocated(nval)) deallocate(nval)
     if (allocated(eexp)) deallocate(eexp)
     if (allocated(subfile)) deallocate(subfile)
+    if (allocated(addfile)) deallocate(addfile)
     if (allocated(iset_label)) deallocate(iset_label)
     if (allocated(iset_ini)) deallocate(iset_ini)
     if (allocated(iset_n)) deallocate(iset_n)
@@ -136,6 +141,7 @@ contains
     allocate(eexp(1))
     allocate(noexp(1))
     allocate(subfile(1))
+    allocate(addfile(1))
     allocate(iset_label(1))
     allocate(iset_ini(1))
     allocate(iset_n(1))
@@ -226,6 +232,12 @@ contains
        write (uout,'("List of subtraction files: ")')
        do i = 1, nsubfiles
           write (uout,'(2X,A,": ",A)') string(i), string(subfile(i))
+       end do
+    end if
+    if (naddfiles > 0) then
+       write (uout,'("List of additional energy files: ")')
+       do i = 1, naddfiles
+          write (uout,'(2X,A,": ",A)') string(i), string(addfile(i))
        end do
     end if
     if (maxnorm < huge(1d0)) then
@@ -648,6 +660,12 @@ contains
              if (nsubfiles > ubound(subfile,1)) &
                 call realloc(subfile,2*nsubfiles)
              subfile(nsubfiles) = trim(line(lp:))
+          elseif (equal(word,'add')) then
+             ! FILE ADD addfile.s
+             naddfiles = naddfiles + 1
+             if (naddfiles > ubound(addfile,1)) &
+                call realloc(addfile,2*naddfiles)
+             addfile(naddfiles) = trim(line(lp:))
           elseif (equal(word,'eterm')) then
              ! FILE ETERM at.s l.i n.i exp.r efile.s
              nefilesi = nefilesi + 1

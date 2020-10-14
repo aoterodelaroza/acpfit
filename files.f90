@@ -92,7 +92,8 @@ contains
   subroutine readfiles()
     use global, only: datapath, emptyfile, yempty, yref, reffile, w, wfile, &
        namesfile, names, nfit, ydisp, nsubfiles, subfile, natoms, lmax, nexp, &
-       x, efile, ncols, ytarget, maxnamelen, wmask, nfitw, xw, ywtarget
+       x, efile, ncols, ytarget, maxnamelen, wmask, nfitw, xw, ywtarget, naddfiles, &
+       addfile, yadd, ywadd
     use tools_io, only: ferror, faterr, fopen_read, getline, fclose, string
 
     character(len=:), allocatable :: file, line
@@ -179,6 +180,28 @@ contains
        end if
     end do
     nfitw = count(wmask)
+
+    ! additional files
+    if (allocated(yadd)) deallocate(yadd)
+    if (allocated(ywadd)) deallocate(ywadd)
+    if (naddfiles > 0) then
+       allocate(yadd(nfit,naddfiles),stat=istat)
+       call checkstat(istat,"yadd")
+       yadd = 0d0
+       do i = 1, naddfiles
+          call gety(trim(datapath) // trim(addfile(i)),"addfile-"//string(i),nfit,yadd(:,i))
+       end do
+
+       allocate(ywadd(nfitw,naddfiles),stat=istat)
+       call checkstat(istat,"ywadd")
+       n = 0
+       do i = 1, nfit
+          if (abs(w(i)) > 1d-10) then
+             n = n + 1
+             ywadd(n,:) = yadd(i,:) * sqrt(w(i))
+          end if
+       end do
+    end if
 
     ! build the weighted variables
     if (allocated(xw)) deallocate(xw)
