@@ -795,6 +795,9 @@ contains
     lu = fopen_read(inacp)
     do while (getline(lu,line))
        lp=1
+       
+       ! skip comments
+       if (line(lp:lp) == "!") cycle
 
        ! read the atom
        word = lgetword(line,lp)
