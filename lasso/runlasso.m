@@ -7,15 +7,18 @@ prefix="lasso";
 tlist = linspace(0,10,21);
 #tlist = [0.1 0.15 0.3 0.5 1 2 3 5 10];
 #tlist = [0 4];
-#tlist = [100];
+#tlist = [4];
 
 ## Use the maximum coefficients, if available?
 usemaxcoef=0;
 
+## In the cases with additional energy contribution, use this as convergence threshold.
+wrmsconv = 1e-4;
+
 #### Do NOT touch past here ####
 
 ## the version of this lasso script
-lasso_version = "1.2";
+lasso_version = "1.3";
 
 ## Read the dump binary file if availble. If not, read the text file and generate the binary file.
 filedump = "octavedump.m";
@@ -33,10 +36,9 @@ else
       "yaddnames","yadd");
 endif
 
-## place the additional energy terms as columns
-if (exist("yadd","var"))
-  x = [x, yadd];
-endif
+## do we have maxcoef or additional columns?
+havemaxcoef = exist("maxcoef","var") && !isempty(maxcoef) && t > 0 && exist("usemaxcoef","var") && usemaxcoef;
+haveaddcols = exist("yadd","var");
 
 ## start the loop
 nacp = 0;
@@ -45,7 +47,33 @@ for it = 1:length(tlist)
   t = tlist(it);
 
   ## scale the columns using the maximum coefficient information
-  if (exist("maxcoef","var") && !isempty(maxcoef) && t > 0 && exist("usemaxcoef","var") && usemaxcoef)
+  if (haveaddcols)
+    wadd = zeros(size(yadd,2),1);
+    xtilde1 = x;
+    xtilde2 = yadd;
+    ytilde1 = y;
+    wrmsold = 0;
+    wrms = Inf;
+
+    ## run lasso
+    n = 0;
+    while(abs(wrms-wrmsold) > wrmsconv)
+      n++;
+      printf("it = %d, wrms = %.5f, delta-wrms = %.5f\n",n,wrms,abs(wrms-wrmsold));
+      ## run a LASSO fit for the ACP coefficients
+      ytilde1 = y - xtilde2 * wadd;
+      [w,iteration] = LassoActiveSet(xtilde1,ytilde1,t,'optTol',1e-9,'zeroThreshold',1e-9);
+
+      ## run a normal LS for the additional terms
+      ytilde2 = y - xtilde1 * w;
+      [wadd sigma r] = ols(ytilde2,xtilde2);
+
+      ## calculate the wrms
+      wrmsold = wrms;
+      wrms = sqrt(sum((y - xtilde1 * w - xtilde2 * wadd).^2));
+    endwhile
+
+  elseif (havemaxcoef)
     factor = ones(columns(x),1);
     xtilde = zeros(size(x));
     maxcoef = maxcoef(:);
@@ -79,7 +107,11 @@ for it = 1:length(tlist)
   endif
 
   ## Calculate the wrms and print the line
-  wrms = sqrt(sum((y - x * w).^2));
+  if (haveaddcols)
+    wrms = sqrt(sum((y - x * w - yadd * wadd).^2));
+  else
+    wrms = sqrt(sum((y - x * w).^2));
+  endif
 
   ## unpack the ACP coefficients from the row vector
   nterms = zeros(length(atoms),length(lname));
@@ -122,13 +154,13 @@ for it = 1:length(tlist)
     fprintf(fid,"\n");
     fprintf(fid,"! ACP terms in training set: %d\n",ncols);
     fprintf(fid,"! Data points in training set: %d\n",nrows);
-    if (exist("yadd","var"))
+    if (haveaddcols)
       fprintf(fid,"! Additional energy contributions:\n");
       for i = 1:length(yaddnames)
-        fprintf(fid,"!  %s: coeff = %.10f\n",yaddnames{i},w(ncols+i));
+        fprintf(fid,"!  %s: coeff = %.10f\n",yaddnames{i},wadd(i));
       endfor
     endif
-    if (exist("maxcoef","var") && !isempty(maxcoef) && t > 0 && exist("usemaxcoef","var") && usemaxcoef)
+    if (havemaxcoef)
       fprintf(fid,"! Maximum coefficients applied\n");
     endif
     fprintf(fid,"! norm-1 = %.4f\n",sum(abs(w)));
