@@ -1067,7 +1067,7 @@ contains
   function falloc()
     integer :: falloc
 
-    do falloc = 1, size(alloc)
+    do falloc = 1, ubound(alloc,1)
        if (.not.alloc(falloc)) exit
     end do
     if (alloc(falloc)) &
