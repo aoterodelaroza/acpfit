@@ -21,8 +21,8 @@ contains
   ! calculate the statistics for a given evaluation
   subroutine calc_stats(y,stat,coef,c0)
     use types, only: stats
-    use global, only: nfit, w, nset, ytarget, &
-       iset_ini, iset_step, iset_n
+    use global, only: nfit, w, nset, ytarget, yadd, &
+       iset_ini, iset_step, iset_n, naddfiles, addcoef
 
     real*8, intent(in) :: y(:) ! results of the fit (no dispersion)
     type(stats), intent(inout) :: stat ! statistics of the fit
@@ -30,7 +30,16 @@ contains
     real*8, intent(in), optional :: c0(:) ! coefficients
 
     integer :: i, j, id
-    real*8 :: dy(nfit)
+    real*8, allocatable :: yaddl(:), dy(:)
+
+    ! allocate
+    allocate(yaddl(nfit),dy(nfit))
+
+    ! calculate the additional energy contribution
+    yaddl = 0d0
+    do i = 1, naddfiles
+       yaddl = yaddl + addcoef(i) * yadd(:,i)
+    end do
 
     ! write down some constants
     if (present(coef)) then
@@ -48,7 +57,7 @@ contains
     if (abs(sum(w)) < 1d-10) then
        stat%wrms = -1d0
     else
-       stat%wrms = sqrt(sum(w * (y-ytarget)**2))
+       stat%wrms = sqrt(sum(w * (y + yaddl - ytarget)**2))
     end if
 
     ! allocate rms and mae
@@ -60,7 +69,7 @@ contains
     allocate(stat%mse(nset))
 
     ! calculate rms and mae for all sets
-    dy = y - ytarget
+    dy = y + yaddl - ytarget
     do i = 1, nset
        id = iset_ini(i) - iset_step(i)
        stat%rms(i) = 0d0
@@ -127,7 +136,7 @@ contains
   subroutine runfit_scanatom(nuse,maxnorm,maxnorm1,maxcoef,maxenergy,&
      imaxenergy,outeval,outacp,minl,maxl)
     use global, only: ncols, nfitw, nfit, global_printeval, x, global_printacp, natoms,&
-       atom, maxlmax, lmax, nexp, w, ywtarget, coef0, col, lname
+       atom, maxlmax, lmax, nexp, ywtarget, coef0, col, lname
     use types, only: stats, realloc
     use tools_io, only: uout, string, ferror, faterr, string, ioj_left
     
@@ -334,7 +343,7 @@ contains
   ! constraints.
   subroutine runfitl(maxnorm,maxnorm1,maxcoef,maxenergy,imaxenergy,ltop,seq,outeval,outacp)
     use global, only: ncols, nfitw, nfit, global_printeval, x, global_printacp, natoms,&
-       atom, maxlmax, lmax, nexp, w, ywtarget, coef0, col, lname
+       atom, maxlmax, lmax, nexp, ywtarget, coef0, col, lname
     use types, only: stats, realloc
     use tools_io, only: uout, string, ferror, faterr, string, ioj_left
     
@@ -348,7 +357,7 @@ contains
     character*(*), intent(in) :: outeval
     character*(*), intent(in) :: outacp
 
-    integer :: i, j, k, l, m, n1, ncyc, nsame, nsame0
+    integer :: i, j, k, l, m, n1, ncyc, nsame
     real*8 :: coef(nfitw), c0(nfitw), y0(nfit), y(nfitw)
     character(len=:), allocatable :: str, aux, aux2
     real*8 :: wrms, norm, norm1, acoef, aene(size(imaxenergy,1))
@@ -768,7 +777,8 @@ contains
   ! Evaluate a given ACP using the current data. From an external file.
   subroutine runeval_file(outeval,inacp)
     use global, only: natoms, lname, x, nfit, global_printeval,&
-       global_printacp, coef0, whichatom, whichcol, whichexp, col
+       global_printacp, coef0, whichatom, whichcol, whichexp, col, naddfiles,&
+       addfile, addcoef
     use tools_io, only: getline, lgetword, equal, isinteger, isreal, &
        ferror, faterr, lower, string, fopen_read, fclose
     use types, only: realloc, stats
@@ -779,7 +789,7 @@ contains
     integer :: n, lp, j, lu, iatom, iang, nterms
     integer, allocatable :: idx(:)
     character(len=:), allocatable :: word, line
-    logical :: ok
+    logical :: ok, found
     real*8 :: y(nfit)
     real*8, allocatable :: coef(:), c0(:)
     type(stats) :: stat
@@ -796,7 +806,31 @@ contains
     do while (getline(lu,line))
        lp=1
        
-       ! skip comments
+       ! Read the additional contribution coefficients. Else, skip comments
+       if (index(line,"Additional energy contributions") > 0) then
+          do while (getline(lu,line))
+             lp = index(line,"!")
+             if (lp > 0) then
+                lp = lp + 1
+                word = lgetword(line,lp)
+                lp = index(word,":")
+                word = trim(word(1:lp-1))
+
+                found = .false.
+                do i = 1, naddfiles
+                   if (equal(word,trim(addfile(i)))) then
+                      lp = index(line,"=") + 1
+                      ok = isreal(addcoef(i),line,lp)
+                      found = .true.
+                   end if
+                end do
+                if (.not.found) exit
+             end if
+          end do
+          lp = 1
+       end if
+
+       ! skip the comments
        if (line(lp:lp) == "!") cycle
 
        ! read the atom

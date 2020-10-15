@@ -69,6 +69,7 @@ module global
   character*255, allocatable :: efile(:,:,:) !< name of the energy terms files
   character*255, allocatable :: subfile(:) !< name of the subtract energy file
   character*255, allocatable :: addfile(:) !< name of the additional energy file
+  real*8, allocatable :: addcoef(:) !< coefficients of the additional energy files
   integer :: nsubfiles, naddfiles
 
   ! labels for the angular momentum channels
@@ -131,6 +132,7 @@ contains
     if (allocated(eexp)) deallocate(eexp)
     if (allocated(subfile)) deallocate(subfile)
     if (allocated(addfile)) deallocate(addfile)
+    if (allocated(addcoef)) deallocate(addcoef)
     if (allocated(iset_label)) deallocate(iset_label)
     if (allocated(iset_ini)) deallocate(iset_ini)
     if (allocated(iset_n)) deallocate(iset_n)
@@ -142,6 +144,7 @@ contains
     allocate(noexp(1))
     allocate(subfile(1))
     allocate(addfile(1))
+    allocate(addcoef(1))
     allocate(iset_label(1))
     allocate(iset_ini(1))
     allocate(iset_n(1))
@@ -237,19 +240,20 @@ contains
     if (naddfiles > 0) then
        write (uout,'("List of additional energy files: ")')
        do i = 1, naddfiles
-          write (uout,'(2X,A,": ",A)') string(i), string(addfile(i))
+          write (uout,'(2X,A,": ",A," coef = ",A)') string(i), string(addfile(i)), &
+             string(addcoef(i),'e',16,8)
        end do
     end if
     if (maxnorm < huge(1d0)) then
-       write (uout,'("Maximum 2-norm of the coefficients: ",A)') string(maxnorm,'f',12,8,4)
+       write (uout,'("Maximum 2-norm of the coefficients: ",A)') string(maxnorm,'f',12,8)
     end if
     if (maxnorm1 < huge(1d0)) then
-       write (uout,'("Maximum 1-norm of the coefficients: ",A)') string(maxnorm1,'f',12,8,4)
+       write (uout,'("Maximum 1-norm of the coefficients: ",A)') string(maxnorm1,'f',12,8)
     end if
     if (imaxenergy(1) > 0) then
        do i = 1, size(imaxenergy,1)
           write (uout,'("Maximum energy for system ",A,": ",A)') string(imaxenergy(i)), &
-             string(maxenergy(i),'f',12,8,4)
+             string(maxenergy(i),'f',12,8)
        end do
     end if
     write (uout,'("List of ACP terms: ")')
@@ -663,9 +667,13 @@ contains
           elseif (equal(word,'add')) then
              ! FILE ADD addfile.s
              naddfiles = naddfiles + 1
-             if (naddfiles > ubound(addfile,1)) &
+             if (naddfiles > ubound(addfile,1)) then
                 call realloc(addfile,2*naddfiles)
-             addfile(naddfiles) = trim(line(lp:))
+                call realloc(addcoef,2*naddfiles)
+             end if
+             addfile(naddfiles) = getword(line,lp)
+             ok = isreal(addcoef(naddfiles),line,lp)
+             if (.not.ok) addcoef(naddfiles) = 0d0
           elseif (equal(word,'eterm')) then
              ! FILE ETERM at.s l.i n.i exp.r efile.s
              nefilesi = nefilesi + 1
