@@ -4,13 +4,16 @@
 prefix="lasso";
 
 ## List of 1-norm constraints to use
-tlist = linspace(0,10,21);
+#tlist = linspace(0,10,21);
 #tlist = [0.1 0.15 0.3 0.5 1 2 3 5 10];
-#tlist = [0 4];
+tlist = [0 4];
 #tlist = [4];
 
 ## Use the maximum coefficients, if available?
 usemaxcoef=0;
+
+## Use the additional energy contributions, if available?
+useaddcols=1;
 
 ## In the cases with additional energy contribution, use this as convergence threshold.
 wrmsconv = 1e-4;
@@ -18,7 +21,7 @@ wrmsconv = 1e-4;
 #### Do NOT touch past here ####
 
 ## the version of this lasso script
-lasso_version = "1.3";
+lasso_version = "1.4";
 
 ## Read the dump binary file if availble. If not, read the text file and generate the binary file.
 filedump = "octavedump.m";
@@ -38,7 +41,11 @@ endif
 
 ## do we have maxcoef or additional columns?
 havemaxcoef = exist("maxcoef","var") && !isempty(maxcoef) && t > 0 && exist("usemaxcoef","var") && usemaxcoef;
-haveaddcols = exist("yadd","var");
+haveaddcols = exist("yadd","var") && useaddcols;
+
+if (havemaxcoef && haveaddcols)
+  error("Don't know how to handle maxcoef and addcols just yet.")
+endif
 
 ## start the loop
 nacp = 0;
