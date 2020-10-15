@@ -31,6 +31,7 @@ if (isempty(finfo))
 endif
 filebin = sprintf("%s.bin",filedump);
 fbininfo = dir(filebin);
+warning("off");
 if (!isempty(fbininfo) && fbininfo.statinfo.mtime >= finfo.statinfo.mtime)
   load("-binary",filebin);
 else
@@ -38,6 +39,7 @@ else
   save("-binary",filebin,"atoms","lmax","lname","explist","nrows","ncols","coef0","x","y","maxcoef",...
       "yaddnames","yadd");
 endif
+warning("on");
 
 ## do we have maxcoef or additional columns?
 havemaxcoef = exist("maxcoef","var") && !isempty(maxcoef) && t > 0 && exist("usemaxcoef","var") && usemaxcoef;
