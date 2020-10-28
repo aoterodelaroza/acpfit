@@ -6,14 +6,14 @@ prefix="lasso";
 ## List of 1-norm constraints to use
 #tlist = linspace(0,10,21);
 #tlist = [0.1 0.15 0.3 0.5 1 2 3 5 10];
-tlist = [0 4];
-#tlist = [4];
+#tlist = [0 4];
+tlist = [100];
 
 ## Use the maximum coefficients, if available?
-usemaxcoef=0;
+usemaxcoef=1;
 
 ## Use the additional energy contributions, if available?
-useaddcols=1;
+useaddcols=0;
 
 ## In the cases with additional energy contribution, use this as convergence threshold.
 wrmsconv = 1e-4;
@@ -41,19 +41,19 @@ else
 endif
 warning("on");
 
-## do we have maxcoef or additional columns?
-havemaxcoef = exist("maxcoef","var") && !isempty(maxcoef) && t > 0 && exist("usemaxcoef","var") && usemaxcoef;
-haveaddcols = exist("yadd","var") && useaddcols;
-
-if (havemaxcoef && haveaddcols)
-  error("Don't know how to handle maxcoef and addcols just yet.")
-endif
-
 ## start the loop
 nacp = 0;
 printf("| #id |   t      |     norm-1   |    norm-2   |   norm-inf   |   wrms  |  nterm | iter |\n");
 for it = 1:length(tlist)
   t = tlist(it);
+
+  ## do we have maxcoef or additional columns?
+  havemaxcoef = exist("maxcoef","var") && !isempty(maxcoef) && t > 0 && exist("usemaxcoef","var") && usemaxcoef;
+  haveaddcols = exist("yadd","var") && useaddcols;
+
+  if (havemaxcoef && haveaddcols)
+    error("Don't know how to handle maxcoef and addcols just yet.")
+  endif
 
   ## scale the columns using the maximum coefficient information
   if (haveaddcols)
