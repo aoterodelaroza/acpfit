@@ -984,16 +984,21 @@ contains
   !> Open a file for reading. The argument form controls the
   !> formatting, and is passed directly to open(). If abspath is
   !> present, file in input is as an absolute path.
-  function fopen_write(file,form,abspath0) result(lu)
+  function fopen_write(file,form,abspath0,stream) result(lu)
     character*(*), intent(in) :: file
     character*(*), intent(in), optional :: form
     logical, intent(in), optional :: abspath0
+    logical, intent(in), optional :: stream
     integer :: lu
     
     integer :: ios
-    character(len=:), allocatable :: ofile
-    logical :: abspath
+    character(len=:), allocatable :: ofile, form_
+    logical :: abspath, stream_
 
+    stream_ = .false.
+    if (present(stream)) stream_ = stream
+    form_ = 'formatted'
+    if (present(form)) form_ = trim(form)
     abspath = .false.
     ofile = trim(adjustl(filepath)) // dirsep // file
     if (file(1:1) == dirsep) abspath = .true.
@@ -1001,10 +1006,10 @@ contains
     if (abspath) ofile = file
 
     lu = falloc()
-    if (present(form)) then
-       open(unit=lu,file=ofile,status='unknown',iostat=ios,form=form)
+    if (stream_) then
+       open(unit=lu,file=ofile,status='unknown',iostat=ios,form=form_,access='stream')
     else
-       open(unit=lu,file=ofile,status='unknown',iostat=ios)
+       open(unit=lu,file=ofile,status='unknown',iostat=ios,form=form_)
     end if
     if (ios /= 0) call ferror("fopen_write","error opening file: "//string(file),faterr)
 
@@ -1330,7 +1335,7 @@ contains
     write (uout,'("  RUN EVAL file.acp")')
     write (uout,'("    Evaluate the provided ACP (file in Gaussian format) with the current data.")')
     write (uout,'("")')
-    write (uout,'("  RUN OCTAVEDUMP [MAXCFILE file.s]")')
+    write (uout,'("  RUN OCTAVEDUMP [MAXCFILE file.s] [BINARY]")')
     write (uout,'("    Dump the fitting data to an octave-style file (octavedump.m).")')
     write (uout,'("")')
     write (uout,'("    * If MAXCFILE is present read a file name. The file name should contain a coefficient")')
@@ -1339,6 +1344,8 @@ contains
     write (uout,'("      The coefficient corresponding to the ACP term in atom At, angular momentum ")')
     write (uout,'("      channel l, n equal to n, and exponent exp can not be higher than maxcoef in")')
     write (uout,'("      absolute value.")')
+    write (uout,'("")')
+    write (uout,'("    * If BINARY, the octavedump is a binary file.")')
     write (uout,'("")')
     write (uout,'("  RUN OCTAVEDUMP UNIVERSAL")')
     write (uout,'("    Dump the fitting data to an octave-style file (octavedump.m).")')

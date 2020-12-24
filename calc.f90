@@ -10,6 +10,7 @@ module calc
   public :: runeval_input
   public :: runeval_file
   public :: runoctavedump
+  public :: runoctavedump_binary
   public :: runtest
   private :: choose
   private :: comb
@@ -909,8 +910,7 @@ contains
     
   end subroutine runeval_file
 
-  ! Write a tetsting ACP that uses all terms and has coefficients that roughtly
-  ! give the same average contribution to the wrms over the whole set.
+  ! Write the octave dump file for the LASSO fitting script
   subroutine runoctavedump(imode,maxcoef)
     use global, only: natoms, atom, lmax, nexp, eexp, xw, ywtarget, ywadd, coef0,&
        imode_octavedump, imode_octavedump_universal, imode_octavedump_universal_local,&
@@ -1041,6 +1041,93 @@ contains
     call fclose(lu)
 
   end subroutine runoctavedump
+
+  ! Write the octave dump file for the LASSO fitting script (binary version)
+  subroutine runoctavedump_binary(maxcoef)
+    use global, only: natoms, atom, lmax, nexp, eexp, x, ywtarget, yadd, coef0,&
+       imode_octavedump, imode_octavedump_universal, imode_octavedump_universal_local,&
+       addfile, w, yref, yempty, ydisp
+    use tools_io, only: uout, faterr, ferror, string, fopen_write, fclose
+    real*8, intent(in) :: maxcoef(:,:,:)
+
+    character(len=:), allocatable :: ofile , methodname
+    integer :: lu, lmaxx
+    integer :: i, j, k, n, m
+    real*8, allocatable :: coef0map(:), xwaux(:,:), x_(:,:)
+    integer*8 :: nrows, ncols, nadd, addmaxl, sizes(7)
+    character*2, allocatable :: atnames(:)
+
+    ofile = "octavedump.dat"
+    write (uout,'("+ Writing binary octave dump file to octavedump.dat"/)')
+    lu = fopen_write(ofile,form='unformatted',stream=.true.)
+
+    ! sizes
+    nadd = 0
+    if (allocated(yadd)) nadd = size(yadd,2)
+    nrows = size(x,1)
+    ncols = size(x,2)
+    addmaxl = 0
+    do i = 1, size(yadd,2)
+       addmaxl = max(addmaxl,len_trim(addfile(i)))
+    end do
+    sizes = (/int(natoms,8),int(nexp,8),nrows,ncols,nadd+1,nadd,addmaxl/)
+    write (lu) sizes
+
+    ! atomic names
+    write (lu) atom(1:natoms)
+
+    ! additional method names
+    allocate(character(len=addmaxl)::methodname)
+    do i = 1, nadd
+       methodname = trim(addfile(i))
+       methodname = adjustl(methodname)
+       write (lu) methodname
+    end do
+    
+    ! lmax
+    write (lu) int(lmax,1)
+
+    ! exponents
+    write (lu) eexp(1:nexp)
+
+    ! weights
+    write (lu) w
+
+    ! acp terms
+    allocate(coef0map(size(x,2)))
+    n = 0
+    do i = 1, natoms
+       do j = 1, lmax(i)
+          do k = 1, nexp
+             n = n + 1
+             coef0map(n) = coef0(k,j,i)
+          end do
+       end do
+    end do
+    allocate(x_(size(x,1),size(x,2)))
+    do i = 1, size(x,2)
+       x_(:,i) = x(:,i) / coef0map(i)
+    end do
+    write (lu) x_
+    deallocate(x_,coef0map)
+
+    ! reference energy
+    write (lu) yref
+
+    ! empty energy
+    write (lu) yempty
+
+    ! added energies
+    if (nadd > 0) then
+       write (lu) yadd
+    end if
+
+    ! subtracted energies
+    write (lu) ydisp
+
+    call fclose(lu)
+
+  end subroutine runoctavedump_binary
 
   ! Write a tetsting ACP that uses all terms and has coefficients that roughtly
   ! give the same average contribution to the wrms over the whole set.

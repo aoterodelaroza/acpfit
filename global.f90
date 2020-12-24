@@ -104,8 +104,9 @@ module global
   integer, parameter :: imode_octavedump = 6
   integer, parameter :: imode_octavedump_universal = 7
   integer, parameter :: imode_octavedump_universal_local = 8
-  integer, parameter :: imode_test = 9
-  integer, parameter :: imode_no = 10
+  integer, parameter :: imode_octavedump_binary = 9
+  integer, parameter :: imode_test = 10
+  integer, parameter :: imode_no = 11
 
 contains
   
@@ -891,6 +892,8 @@ contains
                    imode = imode_octavedump_universal
                 elseif (equal(word,"universal_local")) then
                    imode = imode_octavedump_universal_local
+                elseif (equal(word,"binary")) then
+                   imode = imode_octavedump_binary
                 else
                    exit
                 end if
