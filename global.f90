@@ -884,7 +884,7 @@ contains
           elseif (equal(word,'octavedump')) then
              imode = imode_octavedump
              do while (.true.)
-                word = getword(line,lp)
+                word = lgetword(line,lp)
                 if (equal(word,"maxcfile")) then
                    word = getword(line,lp)
                    call readcfile(word,fit_maxcoef)
