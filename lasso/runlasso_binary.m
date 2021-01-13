@@ -146,7 +146,7 @@ for it = 1:length(tlist)
         w(i) = w(i) * factor(i);
       endfor
 
-      wrms = sqrt(sum((y - x * w).^2))
+      wrms = sqrt(sum((y - x * w).^2));
       idx = find(abs(w) > maxcoef);
       printf("norm-1 = %.4f, wrms = %.4f, maxcoef: ok = %d / violations = %d\n",sum(abs(w)),wrms,columns(x)-length(idx),length(idx));
       if (length(idx) == 0)
