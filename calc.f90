@@ -1045,7 +1045,6 @@ contains
   ! Write the octave dump file for the LASSO fitting script (binary version)
   subroutine runoctavedump_binary(maxcoef)
     use global, only: natoms, atom, lmax, nexp, eexp, x, ywtarget, yadd, coef0,&
-       imode_octavedump, imode_octavedump_universal, imode_octavedump_universal_local,&
        addfile, w, yref, yempty, ydisp
     use tools_io, only: uout, faterr, ferror, string, fopen_write, fclose
     real*8, intent(in) :: maxcoef(:,:,:)
@@ -1054,7 +1053,7 @@ contains
     integer :: lu, lmaxx
     integer :: i, j, k, n, m
     real*8, allocatable :: coef0map(:), xwaux(:,:), x_(:,:)
-    integer*8 :: nrows, ncols, nadd, addmaxl, sizes(7)
+    integer*8 :: nrows, ncols, nadd, addmaxl, sizes(7), nmaxc
     character*2, allocatable :: atnames(:)
 
     ofile = "octavedump.dat"
@@ -1124,6 +1123,28 @@ contains
 
     ! subtracted energies
     write (lu) ydisp
+
+    if (any(maxcoef /= huge(1d0))) then
+       write (lu) int(1,1)
+       nmaxc = 0
+       do i = 1, natoms
+          do j = 1, lmax(i)
+             do k = 1, nexp
+                nmaxc = nmaxc + 1
+             end do
+          end do
+       end do
+       write (lu) nmaxc
+       do i = 1, natoms
+          do j = 1, lmax(i)
+             do k = 1, nexp
+                write (lu) maxcoef(k,j,i)
+             end do
+          end do
+       end do
+    else
+       write (lu) int(0,1)
+    end if
 
     call fclose(lu)
 

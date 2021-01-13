@@ -3,7 +3,7 @@
 prefix="lasso";
 
 ## List of 1-norm constraints to use
-tlist = [10];
+tlist = [20];
 
 ## Use the maximum coefficients, if available?
 usemaxcoef=1;
@@ -17,7 +17,7 @@ wrmsconv = 1e-4;
 #### Do NOT touch past here ####
 
 ## the version of this lasso script
-lasso_version = "1.5binary";
+lasso_version = "1.6binary";
 
 ## Read the binary file written by acpdb
 function [atoms,lmax,lname,explist,nrows,ncols,x,y,maxcoef,yaddnames,yadd] = readbin(filebin)
@@ -79,6 +79,11 @@ function [atoms,lmax,lname,explist,nrows,ncols,x,y,maxcoef,yaddnames,yadd] = rea
   y = y .* wsqrt;
 
   maxcoef = [];
+  ismaxcoef = char(fread(fid,1,"char"));
+  if (ismaxcoef)
+    nn = fread(fid,1,"uint64");
+    maxcoef = fread(fid,nn,"double");
+  endif
 
   fclose(fid);
 endfunction
@@ -141,7 +146,7 @@ for it = 1:length(tlist)
         w(i) = w(i) * factor(i);
       endfor
 
-      wrms = sqrt(sum((y - x * w).^2));
+      wrms = sqrt(sum((y - x * w).^2))
       idx = find(abs(w) > maxcoef);
       printf("norm-1 = %.4f, wrms = %.4f, maxcoef: ok = %d / violations = %d\n",sum(abs(w)),wrms,columns(x)-length(idx),length(idx));
       if (length(idx) == 0)
