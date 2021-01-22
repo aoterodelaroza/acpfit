@@ -387,9 +387,10 @@ contains
        write (lu,'("#   maxcoef = ",A)') string(stat%maxcoef,'f',12,6,ioj_left)
        write (lu,'("#   wrms    =    ",A)') string(stat%wrms,'f',14,8,ioj_left)
        do i = 1, nset
-          write (lu,'("#",3X,A," rms = ",A," mae = ",A," mse = ",A)') &
+          write (lu,'("#",3X,A," rms = ",A," mae = ",A," mse = ",A," mae(no0w) = ",A)') &
              string(iset_label(i),10,ioj_left), string(stat%rms(i),'f',14,8), &
-             string(stat%mae(i),'f',14,8), string(stat%mse(i),'f',14,8,4)
+             string(stat%mae(i),'f',14,8), string(stat%mse(i),'f',14,8,4), &
+             string(stat%maewnz(i),'f',14,8)
        end do
     end if
 

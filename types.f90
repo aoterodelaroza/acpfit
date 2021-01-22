@@ -59,6 +59,7 @@ module types
      real*8, allocatable :: rms(:) ! rms for each of the subsets
      real*8, allocatable :: mae(:) ! mae for each of the subsets
      real*8, allocatable :: mse(:) ! mse for each of the subsets
+     real*8, allocatable :: maewnz(:) ! mae (non-zero weights) for each of the subsets
   end type stats
 
 contains

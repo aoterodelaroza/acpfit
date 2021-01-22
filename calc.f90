@@ -30,7 +30,7 @@ contains
     real*8, intent(in), optional :: coef(:) ! coefficients
     real*8, intent(in), optional :: c0(:) ! coefficients
 
-    integer :: i, j, id
+    integer :: i, j, id, n
     real*8, allocatable :: yaddl(:), dy(:)
 
     ! allocate
@@ -65,9 +65,11 @@ contains
     if (allocated(stat%rms)) deallocate(stat%rms)
     if (allocated(stat%mae)) deallocate(stat%mae)
     if (allocated(stat%mse)) deallocate(stat%mse)
+    if (allocated(stat%maewnz)) deallocate(stat%maewnz)
     allocate(stat%rms(nset))
     allocate(stat%mae(nset))
     allocate(stat%mse(nset))
+    allocate(stat%maewnz(nset))
 
     ! calculate rms and mae for all sets
     dy = y + yaddl - ytarget
@@ -76,15 +78,26 @@ contains
        stat%rms(i) = 0d0
        stat%mae(i) = 0d0
        stat%mse(i) = 0d0
+
+       n = 0
        do j = 1, iset_n(i)
           id = id + iset_step(i)
           stat%rms(i) = stat%rms(i) + (dy(id))**2
           stat%mae(i) = stat%mae(i) + abs(dy(id))
           stat%mse(i) = stat%mse(i) + dy(id)
+          if (w(id) /= 0) then
+             n = n + 1
+             stat%maewnz(i) = stat%maewnz(i) + abs(dy(id))
+          end if
        end do
        stat%rms(i) = sqrt(stat%rms(i) / iset_n(i))
        stat%mae(i) = stat%mae(i) / iset_n(i)
        stat%mse(i) = stat%mse(i) / iset_n(i)
+       if (n > 0) then
+          stat%maewnz(i) = stat%maewnz(i) / n
+       else
+          stat%maewnz(i) = 0d0
+       end if
     end do
 
   end subroutine calc_stats
