@@ -78,6 +78,7 @@ contains
        stat%rms(i) = 0d0
        stat%mae(i) = 0d0
        stat%mse(i) = 0d0
+       stat%maewnz(i) = 0d0
 
        n = 0
        do j = 1, iset_n(i)
