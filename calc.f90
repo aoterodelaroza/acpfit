@@ -86,7 +86,7 @@ contains
           stat%rms(i) = stat%rms(i) + (dy(id))**2
           stat%mae(i) = stat%mae(i) + abs(dy(id))
           stat%mse(i) = stat%mse(i) + dy(id)
-          if (w(id) /= 0) then
+          if (abs(w(id)) > 1d-14) then
              n = n + 1
              stat%maewnz(i) = stat%maewnz(i) + abs(dy(id))
           end if
